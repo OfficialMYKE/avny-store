@@ -99,7 +99,7 @@ export default function Home() {
           AUTHENTIC VINTAGE NEW YORK STYLE
         </h1>
         <p className="text-sm md:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
-          Desde Brooklyn, Bronx y Manhattan: tesoros vintage con alma
+          Desde Brooklyn, Bronx & Manhattan: tesoros vintage con alma
           neoyorquina. <br />
           Envíos seguros a todo Ecuador 🇪🇨
         </p>
@@ -228,7 +228,7 @@ export default function Home() {
 
       <footer className="border-t bg-white py-12 text-center">
         <h2 className="text-2xl font-black tracking-tighter italic mb-4">
-          AVNY.
+          AVNYC.
         </h2>
         <p className="text-xs text-muted-foreground">
           © 2025 Authentic Vintage NY. <br /> Quito, Ecuador.
