@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "../../../lib/supabase";
-import { useRouter } from "next/navigation";
-import { Input } from "../../../../components/ui/input";
-import { Button } from "../../../../components/ui/button";
-import { Label } from "../../../../components/ui/label";
+import { useEffect, useState } from "react";
+import { createClient } from "../../../../lib/supabase"; // Asegúrate de que esta ruta sea correcta
+import { useRouter, useParams } from "next/navigation";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Loader2,
   ArrowLeft,
   Image as ImageIcon,
   Ruler,
   Plus,
+  X,
   Box,
-} from "lucide-react"; // Agregué Box
+} from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+// LISTAS MAESTRAS
 const CATEGORIES = [
   "Camisetas",
   "Hoodies",
@@ -76,28 +78,84 @@ const KIDS_SIZES = [
   "3Y",
 ];
 
-export default function CreateProduct() {
+export default function EditProductPage() {
   const supabase = createClient();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const params = useParams();
+  const id = params?.id as string;
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // ESTADO DEL FORMULARIO
   const [formData, setFormData] = useState({
     title: "",
     price: "",
     sale_price: "",
-    stock: "1", // NUEVO CAMPO: STOCK
+    stock: "", // Iniciamos como string vacío para evitar ceros molestos
     category: "",
-    colors: "",
     gender: "Unisex",
+    colors: "",
+    image_url: "",
   });
 
+  // ESTADOS AUXILIARES
   const [sizesData, setSizesData] = useState<
     { size: string; available: boolean }[]
   >([]);
   const [soldOutColors, setSoldOutColors] = useState<string[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [galleryFiles, setGalleryFiles] = useState<Record<string, File[]>>({});
+  const [existingGallery, setExistingGallery] = useState<
+    { color: string; images: string[] }[]
+  >([]);
+  const [newGalleryFiles, setNewGalleryFiles] = useState<
+    Record<string, File[]>
+  >({});
 
+  // 1. CARGAR DATOS
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        alert("Error al cargar producto");
+        router.push("/admin/dashboard");
+        return;
+      }
+
+      setFormData({
+        title: data.title || "",
+        price: data.price?.toString() || "",
+        sale_price: data.sale_price?.toString() || "",
+        // CORRECCIÓN: Si es null o undefined, ponemos "0".
+        stock:
+          data.stock !== null && data.stock !== undefined
+            ? data.stock.toString()
+            : "0",
+        category: data.category || "",
+        gender: data.gender || "Unisex",
+        colors: Array.isArray(data.colors) ? data.colors[0] : data.colors || "",
+        image_url: data.image_url || "",
+      });
+
+      if (data.sizes_data) setSizesData(data.sizes_data);
+      else if (data.size) setSizesData([{ size: data.size, available: true }]);
+
+      if (data.sold_out_colors) setSoldOutColors(data.sold_out_colors);
+      if (data.gallery) setExistingGallery(data.gallery);
+
+      setLoading(false);
+    };
+
+    fetchProduct();
+  }, [id, router]);
+
+  // MANEJADORES DE ESTADO
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -116,25 +174,55 @@ export default function CreateProduct() {
     });
   };
 
-  const handleGalleryChange = (
+  const toggleColorStock = (color: string) => {
+    setSoldOutColors((prev) =>
+      prev.includes(color) ? prev.filter((c) => c !== color) : [...prev, color]
+    );
+  };
+
+  const handleNewGalleryFiles = (
     color: string,
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setGalleryFiles((prev) => ({
+      const files = Array.from(e.target.files);
+      setNewGalleryFiles((prev) => ({
         ...prev,
-        [color]: [...(prev[color] || []), ...newFiles],
+        [color]: [...(prev[color] || []), ...files],
       }));
     }
   };
 
+  const removeNewFile = (color: string, index: number) => {
+    setNewGalleryFiles((prev) => ({
+      ...prev,
+      [color]: prev[color].filter((_, i) => i !== index),
+    }));
+  };
+
+  const removeExistingImage = (color: string, imgUrl: string) => {
+    setExistingGallery((prev) =>
+      prev
+        .map((item) => {
+          if (item.color === color)
+            return {
+              ...item,
+              images: item.images.filter((img) => img !== imgUrl),
+            };
+          return item;
+        })
+        .filter((item) => item.images.length > 0)
+    );
+  };
+
+  // 2. GUARDAR DATOS (SUBMIT)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
 
     try {
-      let mainImageUrl = "";
+      // A. Subir imagen principal si cambió
+      let mainImageUrl = formData.image_url;
       if (imageFile) {
         const fileName = `main_${Date.now()}.${imageFile.name
           .split(".")
@@ -150,10 +238,11 @@ export default function CreateProduct() {
         }
       }
 
-      const galleryData: { color: string; images: string[] }[] = [];
-      for (const [color, files] of Object.entries(galleryFiles)) {
+      // B. Subir galería nueva
+      const newUploadedGallery: { color: string; images: string[] }[] = [];
+      for (const [color, files] of Object.entries(newGalleryFiles)) {
         if (files.length === 0) continue;
-        const uploadedUrls: string[] = [];
+        const urls: string[] = [];
         for (const file of files) {
           const fileName = `gallery_${color}_${Date.now()}_${Math.random()}.${file.name
             .split(".")
@@ -165,47 +254,75 @@ export default function CreateProduct() {
             const { data } = supabase.storage
               .from("images")
               .getPublicUrl(fileName);
-            uploadedUrls.push(data.publicUrl);
+            urls.push(data.publicUrl);
           }
         }
-        if (uploadedUrls.length > 0)
-          galleryData.push({ color, images: uploadedUrls });
+        newUploadedGallery.push({ color, images: urls });
       }
 
+      // C. Combinar galerías
+      const finalGalleryMap = new Map<string, string[]>();
+      existingGallery.forEach((item) =>
+        finalGalleryMap.set(item.color, item.images)
+      );
+      newUploadedGallery.forEach((item) => {
+        const current = finalGalleryMap.get(item.color) || [];
+        finalGalleryMap.set(item.color, [...current, ...item.images]);
+      });
+      const finalGalleryData = Array.from(finalGalleryMap.entries()).map(
+        ([color, images]) => ({ color, images })
+      );
+
+      // D. Preparar Colores
       const colorsSet = new Set<string>();
       if (formData.colors) colorsSet.add(formData.colors);
-      galleryData.forEach((item) => colorsSet.add(item.color));
+      finalGalleryData.forEach((g) => colorsSet.add(g.color));
 
-      const { error } = await supabase.from("products").insert([
-        {
+      // E. ACTUALIZAR BASE DE DATOS
+      const { error } = await supabase
+        .from("products")
+        .update({
           title: formData.title,
           price: parseFloat(formData.price),
           sale_price: formData.sale_price
             ? parseFloat(formData.sale_price)
             : null,
-          stock: parseInt(formData.stock) || 1, // GUARDAR STOCK
+
+          // --- CORRECCIÓN CLAVE AQUÍ ---
+          // Usamos Number() en vez de parseInt para mayor precisión.
+          stock: Number(formData.stock),
+          // -----------------------------
+
           category: formData.category,
           gender: formData.gender,
-          colors: Array.from(colorsSet),
           image_url: mainImageUrl,
-          gallery: galleryData,
+          colors: Array.from(colorsSet),
           sizes_data: sizesData,
           sold_out_colors: soldOutColors,
+          gallery: finalGalleryData,
           size: sizesData.map((s) => s.size).join(", "),
-          is_sold: false,
-        },
-      ]);
+        })
+        .eq("id", id);
 
       if (error) throw error;
+
+      // Redirigir al panel
       router.push("/admin/dashboard");
       router.refresh();
     } catch (error) {
       console.error(error);
-      alert("Error al guardar.");
+      alert("Error al guardar cambios");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading)
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin" />
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
@@ -217,26 +334,27 @@ export default function CreateProduct() {
           >
             <ArrowLeft size={20} />
           </Link>
-          <h1 className="text-2xl font-black italic">Nuevo Producto</h1>
+          <h1 className="text-2xl font-black italic">Editar Producto</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* SECCIÓN 1: DATOS GENERALES */}
           <div className="grid gap-4 p-5 border rounded-lg bg-zinc-50/50">
             <h3 className="font-bold text-sm text-muted-foreground uppercase">
               Información General
             </h3>
+
             <div className="space-y-1">
               <Label>Nombre</Label>
               <Input
                 name="title"
-                required
+                value={formData.title}
                 onChange={handleChange}
                 className="bg-white"
-                placeholder="Ej: Camiseta Mickey Vintage"
+                required
               />
             </div>
 
-            {/* FILA DE PRECIOS Y STOCK */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
                 <Label>Precio ($)</Label>
@@ -244,9 +362,10 @@ export default function CreateProduct() {
                   name="price"
                   type="number"
                   step="0.01"
-                  required
+                  value={formData.price}
                   onChange={handleChange}
                   className="bg-white"
+                  required
                 />
               </div>
               <div className="space-y-1">
@@ -255,11 +374,13 @@ export default function CreateProduct() {
                   name="sale_price"
                   type="number"
                   step="0.01"
+                  value={formData.sale_price}
                   onChange={handleChange}
                   className="bg-white border-red-100"
                 />
               </div>
-              {/* CAMPO STOCK */}
+
+              {/* CAMPO STOCK CORREGIDO */}
               <div className="space-y-1">
                 <Label className="flex items-center gap-1">
                   <Box size={14} /> Stock
@@ -270,7 +391,7 @@ export default function CreateProduct() {
                   min="0"
                   value={formData.stock}
                   onChange={handleChange}
-                  className="bg-white border-blue-200"
+                  className="bg-white border-blue-200 font-bold text-blue-900"
                   required
                 />
               </div>
@@ -281,14 +402,11 @@ export default function CreateProduct() {
                 <Label>Categoría</Label>
                 <select
                   name="category"
-                  required
+                  value={formData.category}
                   onChange={handleChange}
                   className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
-                  defaultValue=""
+                  required
                 >
-                  <option value="" disabled>
-                    Seleccionar...
-                  </option>
                   {CATEGORIES.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -297,13 +415,13 @@ export default function CreateProduct() {
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>Género / Público</Label>
+                <Label>Género</Label>
                 <select
                   name="gender"
-                  required
+                  value={formData.gender}
                   onChange={handleChange}
                   className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
-                  defaultValue="Unisex"
+                  required
                 >
                   {GENDERS.map((g) => (
                     <option key={g} value={g}>
@@ -315,7 +433,9 @@ export default function CreateProduct() {
             </div>
           </div>
 
+          {/* SECCIÓN 2: TALLAS */}
           <div className="p-5 border rounded-lg bg-zinc-50/50">
+            {/* ... (código de tallas igual que antes) ... */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-sm text-muted-foreground uppercase flex gap-2 items-center">
                 <Ruler size={16} /> Tallas Disponibles
@@ -373,30 +493,35 @@ export default function CreateProduct() {
             </div>
           </div>
 
+          {/* SECCIÓN 3: FOTOS */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Foto Portada</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) =>
-                  e.target.files && setImageFile(e.target.files[0])
-                }
-                required
-              />
+              <Label>Portada</Label>
+              <div className="flex gap-4 items-center">
+                {formData.image_url && (
+                  <img
+                    src={formData.image_url}
+                    className="w-16 h-16 object-cover rounded border"
+                  />
+                )}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    e.target.files && setImageFile(e.target.files[0])
+                  }
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Color Principal</Label>
               <select
                 name="colors"
-                required
+                value={formData.colors}
                 onChange={handleChange}
                 className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
-                defaultValue=""
+                required
               >
-                <option value="" disabled>
-                  Seleccionar...
-                </option>
                 {COLORS.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -406,55 +531,106 @@ export default function CreateProduct() {
             </div>
           </div>
 
+          {/* SECCIÓN 4: VARIANTES */}
           <div className="space-y-4">
+            {/* ... (código de galería igual que antes, solo asegúrate de cerrar bien los maps) ... */}
             <Label className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> Variantes (Opcional)
+              <ImageIcon className="w-4 h-4" /> Variantes (Stock & Fotos)
             </Label>
             <div className="grid gap-6 p-4 border rounded-lg bg-zinc-50">
-              {COLORS.map((color) => (
-                <div
-                  key={color}
-                  className="space-y-2 border-b border-dashed pb-4 last:border-0"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">{color}</span>
-                    <label className="cursor-pointer text-xs bg-black text-white px-3 py-1.5 rounded-md flex items-center gap-1">
-                      <Plus size={12} /> Fotos
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleGalleryChange(color, e)}
-                      />
-                    </label>
-                  </div>
-                  {galleryFiles[color] && (
-                    <div className="flex gap-2 py-2">
-                      {galleryFiles[color].map((file, idx) => (
+              {COLORS.map((color) => {
+                const existingForColor = existingGallery.find(
+                  (g) => g.color === color
+                );
+                const newForColor = newGalleryFiles[color] || [];
+                const isSoldOut = soldOutColors.includes(color);
+                return (
+                  <div
+                    key={color}
+                    className="space-y-2 border-b border-dashed pb-4 last:border-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm">{color}</span>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 text-xs cursor-pointer hover:bg-zinc-200 px-2 py-1 rounded transition">
+                          <input
+                            type="checkbox"
+                            checked={isSoldOut}
+                            onChange={() => toggleColorStock(color)}
+                            className="rounded border-gray-300"
+                          />
+                          <span
+                            className={
+                              isSoldOut
+                                ? "text-red-600 font-bold"
+                                : "text-muted-foreground"
+                            }
+                          >
+                            {isSoldOut ? "Agotado" : "Marcar Agotado"}
+                          </span>
+                        </label>
+                        <label className="cursor-pointer text-xs bg-black text-white px-3 py-1.5 rounded-md flex items-center gap-1">
+                          <Plus size={12} /> Fotos
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleNewGalleryFiles(color, e)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto">
+                      {existingForColor?.images.map((img, idx) => (
                         <div
-                          key={idx}
-                          className="w-10 h-10 bg-white border rounded overflow-hidden"
+                          key={`old-${idx}`}
+                          className="relative w-12 h-12 flex-shrink-0 group"
+                        >
+                          <img
+                            src={img}
+                            className="w-full h-full object-cover rounded border border-green-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeExistingImage(color, img)}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                      ))}
+                      {newForColor.map((file, idx) => (
+                        <div
+                          key={`new-${idx}`}
+                          className="relative w-12 h-12 flex-shrink-0 group"
                         >
                           <img
                             src={URL.createObjectURL(file)}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover rounded border border-blue-200 opacity-70"
                           />
+                          <button
+                            type="button"
+                            onClick={() => removeNewFile(color, idx)}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                          >
+                            <X size={10} />
+                          </button>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <Button
             type="submit"
             className="w-full h-12 text-lg"
-            disabled={loading}
+            disabled={saving}
           >
-            {loading ? <Loader2 className="animate-spin" /> : "Publicar"}
+            {saving ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}
           </Button>
         </form>
       </div>

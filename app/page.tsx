@@ -1,116 +1,237 @@
+"use client";
+
+import { useState, useEffect } from "react";
+// Si usas rutas manuales ../../../lib/supabase ajústalo aquí, si no, usa @/lib/supabase
 import { createClient } from "./lib/supabase";
-import { ShoppingBag } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
+import { Navbar5 } from "@/components/ui/navbar-5";
+import { ProductModal } from "@/components/product-modal"; // Asegúrate que esta ruta sea correcta
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils"; // O usa tu función auxiliar si no tienes esta importación
 
-export const revalidate = 0;
-
-export default async function Home() {
+export default function Home() {
   const supabase = createClient();
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { data: products } = await supabase
-    .from("products")
-    .select("*")
-    .eq("is_sold", false)
-    .order("created_at", { ascending: false });
+  // Estado compartido
+  const [filter, setFilter] = useState("Todos");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    const { data } = await supabase
+      .from("products")
+      .select("*")
+      // .eq("is_sold", false) <--- ELIMINAMOS ESTA LÍNEA PARA TRAER TAMBIÉN LO VENDIDO
+      .order("created_at", { ascending: false });
+
+    if (data) setProducts(data);
+    setLoading(false);
+  };
+
+  const filteredProducts = products.filter((p) => {
+    // 1. Filtro de Búsqueda
+    const matchesSearch = p.title
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+
+    // 2. Filtro de Categoría / Género / Ofertas
+    let matchesCategory = true;
+
+    if (filter === "Todos") {
+      matchesCategory = true;
+    } else if (filter === "Ofertas") {
+      // Solo mostramos ofertas SI el producto NO está vendido
+      matchesCategory = p.sale_price && p.sale_price < p.price && !p.is_sold;
+    } else if (["Hombre", "Mujer", "Niños"].includes(filter)) {
+      if (filter === "Niños") {
+        matchesCategory = p.gender === "Niños";
+      } else {
+        matchesCategory = p.gender === filter || p.gender === "Unisex";
+      }
+    } else {
+      matchesCategory = p.category === filter;
+    }
+
+    return matchesCategory && matchesSearch;
+  });
+
+  // Traductor visual de títulos
+  const getDisplayTitle = (categoryName: string) => {
+    switch (categoryName) {
+      case "Todos":
+        return "New Arrivals";
+      case "Ofertas":
+        return "Ofertas & Descuentos";
+      case "Hombre":
+        return "Colección Hombre";
+      case "Mujer":
+        return "Colección Mujer";
+      case "Niños":
+        return "Kids Vintage";
+      case "Zapatos":
+        return "Shoes & Sneakers";
+      case "Pantalones":
+        return "Pants & Denim";
+      case "Camisetas":
+        return "T-Shirts Graphic";
+      case "Chaquetas":
+        return "Jackets & Coats";
+      case "Accesorios":
+        return "Accessories";
+      case "Hoodies":
+        return "Hoodies & Sweatshirts";
+      default:
+        return categoryName;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-white text-black font-sans">
-      {/* NAV */}
-      <nav className="border-b-2 border-black sticky top-0 bg-white z-50 p-4 flex justify-between items-center">
-        <h1 className="text-xl font-black tracking-tighter italic">
-          AUTHENTIC VINTAGE NY.
+    <div className="min-h-screen bg-zinc-50/50 font-sans text-zinc-900">
+      <Navbar5 onCategoryChange={setFilter} onSearchChange={setSearchTerm} />
+
+      {/* HEADER / HERO SECTION */}
+      <div className="bg-white border-b py-12 md:py-20 text-center px-4">
+        <h1 className="text-4xl md:text-7xl font-black tracking-tighter italic mb-2 uppercase">
+          Streetwear Source
         </h1>
-        <Link
-          href="/login"
-          className="text-xs font-bold underline hover:text-zinc-500"
-        >
-          ADMIN
-        </Link>
-      </nav>
-
-      {/* PORTADA */}
-      <header className="py-20 px-4 text-center border-b border-zinc-200 bg-zinc-50">
-        <h2 className="text-5xl md:text-7xl font-black mb-4 tracking-tighter uppercase">
-          Streetwear <br /> from Brooklyn
-        </h2>
-        <p className="text-zinc-500 max-w-md mx-auto mb-8 font-mono text-sm">
-          Piezas únicas seleccionadas en Nueva York. <br /> Enviamos a todo
-          Ecuador por Servientrega.
+        <p className="text-sm md:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
+          Colección curada desde Brooklyn, NY. <br />
+          Envíos seguros a todo Ecuador 🇪🇨
         </p>
-      </header>
+      </div>
 
-      {/* GRILLA DE PRODUCTOS */}
-      <main className="max-w-7xl mx-auto p-4 md:p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
-          {products?.map((product) => {
-            // PREPARAMOS EL MENSAJE DE WHATSAPP AQUÍ
-            // Usamos encodeURIComponent para que los espacios y saltos de línea funcionen bien
-            const message = `Hola! 👋 Me interesa comprar esta prenda:\n\n🧢 *${product.title}*\n💰 Precio: $${product.price}\n\n¿Aún está disponible?\n\nVer foto: ${product.image_url}`;
-            const whatsappLink = `https://wa.me/593986355332?text=${encodeURIComponent(
-              message
-            )}`;
-
-            return (
-              <div key={product.id} className="group relative">
-                {/* FOTO */}
-                <div className="aspect-[3/4] w-full overflow-hidden bg-zinc-100 border border-black relative mb-4">
-                  {product.image_url ? (
-                    <img
-                      src={product.image_url}
-                      alt={product.title}
-                      className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-300">
-                      Sin Foto
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 bg-black text-white text-xs font-bold px-2 py-1 uppercase">
-                    {product.size}
-                  </div>
-                </div>
-
-                {/* INFO */}
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-lg leading-tight uppercase">
-                      {product.title}
-                    </h3>
-                    <p className="text-sm text-zinc-500 font-mono mt-1">
-                      {product.condition}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="block font-black text-xl">
-                      ${product.price}
-                    </span>
-                  </div>
-                </div>
-
-                {/* BOTÓN WHATSAPP MEJORADO */}
-                <a
-                  href={whatsappLink}
-                  target="_blank"
-                  className="mt-4 w-full bg-black text-white py-3 font-bold text-sm uppercase tracking-widest hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
-                >
-                  <ShoppingBag size={16} />
-                  Comprar
-                </a>
-              </div>
-            );
-          })}
-
-          {(!products || products.length === 0) && (
-            <div className="col-span-full text-center py-20 text-zinc-400">
-              <p>Aún no hay stock disponible. Vuelve pronto.</p>
-            </div>
-          )}
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex items-end justify-between mb-6 border-b pb-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black tracking-tighter italic uppercase">
+              {getDisplayTitle(filter)}
+            </h2>
+          </div>
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            {filteredProducts.length} Items
+          </span>
         </div>
+
+        {loading ? (
+          <div className="flex justify-center py-40">
+            <Loader2 className="animate-spin text-zinc-900 w-10 h-10" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4 md:gap-x-8">
+            {filteredProducts.map((product) => {
+              // Lógica de visualización
+              const isSoldOut = product.is_sold; // ¿Está vendido?
+
+              const hasDiscount =
+                product.sale_price && product.sale_price < product.price;
+              const currentPrice = hasDiscount
+                ? product.sale_price
+                : product.price;
+              const discountPercent = hasDiscount
+                ? Math.round(
+                    ((product.price - currentPrice) / product.price) * 100
+                  )
+                : 0;
+
+              return (
+                <ProductModal key={product.id} product={product}>
+                  <div
+                    className={cn(
+                      "group bg-transparent h-full flex flex-col cursor-pointer",
+                      isSoldOut && "opacity-75" // Si está vendido, lo hacemos un poco transparente
+                    )}
+                  >
+                    {/* FOTO CARD */}
+                    <div className="aspect-[3/4] w-full overflow-hidden bg-zinc-100 relative rounded-sm mb-3">
+                      {/* ETIQUETA SOLD OUT (Encima de todo) */}
+                      {isSoldOut && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/30 backdrop-blur-[1px]">
+                          <span className="bg-black text-white px-4 py-1 text-sm md:text-base font-black uppercase -rotate-12 border-2 border-white shadow-xl tracking-widest">
+                            Sold Out
+                          </span>
+                        </div>
+                      )}
+
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.title}
+                          className={cn(
+                            "object-cover w-full h-full transition-transform duration-700 group-hover:scale-105",
+                            isSoldOut && "grayscale" // Foto en blanco y negro si está vendido
+                          )}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-300 text-[10px]">
+                          Sin Foto
+                        </div>
+                      )}
+
+                      {/* BADGES (Talla y Descuento) - Solo si NO está vendido */}
+                      {!isSoldOut && (
+                        <>
+                          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur text-black px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm z-10 shadow-sm">
+                            {product.size}
+                          </div>
+
+                          {hasDiscount && (
+                            <div className="absolute top-2 left-2 bg-red-600 text-white px-1.5 py-1 text-[10px] font-bold rounded-sm z-10 shadow-sm">
+                              -{discountPercent}%
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* INFO CARD */}
+                    <div className="flex flex-col flex-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <h3 className="font-bold text-xs md:text-sm leading-tight uppercase tracking-tight line-clamp-2">
+                          {product.title}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className={cn(
+                            "text-sm font-black",
+                            hasDiscount ? "text-red-600" : "text-zinc-900",
+                            isSoldOut && "text-muted-foreground line-through"
+                          )}
+                        >
+                          ${currentPrice}
+                        </span>
+
+                        {hasDiscount && !isSoldOut && (
+                          <span className="text-xs text-muted-foreground line-through decoration-zinc-300">
+                            ${product.price}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
+                        {product.category}
+                      </p>
+                    </div>
+                  </div>
+                </ProductModal>
+              );
+            })}
+          </div>
+        )}
       </main>
 
-      <footer className="border-t border-zinc-200 py-12 text-center text-xs text-zinc-400 font-mono">
-        <p>© 2025 Authentic Vintage Store. Quito, Ecuador.</p>
+      <footer className="border-t bg-white py-12 text-center">
+        <h2 className="text-2xl font-black tracking-tighter italic mb-4">
+          AVNY.
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          © 2025 Authentic Vintage NY. <br /> Quito, Ecuador.
+        </p>
       </footer>
     </div>
   );
