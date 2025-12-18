@@ -112,7 +112,7 @@ export const Navbar5 = ({
             onClick={() => onCategoryChange("Todos")}
           >
             <span className="text-2xl font-black tracking-tighter italic">
-              AVNY.
+              AVNYC.
             </span>
           </div>
 
@@ -210,7 +210,7 @@ export const Navbar5 = ({
             >
               <SheetHeader>
                 <SheetTitle className="text-left font-black italic text-xl">
-                  AVNY.
+                  AVNYC.
                 </SheetTitle>
               </SheetHeader>
 
