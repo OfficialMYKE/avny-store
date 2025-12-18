@@ -96,10 +96,11 @@ export default function Home() {
       {/* HEADER / HERO SECTION */}
       <div className="bg-white border-b py-12 md:py-20 text-center px-4">
         <h1 className="text-4xl md:text-7xl font-black tracking-tighter italic mb-2 uppercase">
-          Streetwear Source
+          AUTHENTIC VINTAGE NEW YORK STYLE
         </h1>
         <p className="text-sm md:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
-          Colección curada desde Brooklyn, NY. <br />
+          Desde Brooklyn, Bronx y Manhattan: tesoros vintage con alma
+          neoyorquina. <br />
           Envíos seguros a todo Ecuador 🇪🇨
         </p>
       </div>
