@@ -99,8 +99,9 @@ export default function Home() {
           AUTHENTIC VINTAGE NEW YORK STYLE
         </h1>
         <p className="text-sm md:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
-          From Brooklyn, Bronx & Manhattan: tesoros vintage con alma
-          neoyorquina. <br />
+          From Brooklyn, Bronx & Manhattan:
+          <br />
+          Prendas vintage cdesde las calles de NYC <br />
           Envíos seguros a todo Ecuador 🇪🇨
         </p>
       </div>
