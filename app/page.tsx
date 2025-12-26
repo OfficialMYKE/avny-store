@@ -101,7 +101,7 @@ export default function Home() {
         <p className="text-sm md:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
           From Brooklyn, Bronx & Manhattan:
           <br />
-          Prendas vintage desde las calles de NYC <br />
+          Prendas vintage desde NYC <br />
           Envíos seguros a todo Ecuador 🇪🇨
         </p>
       </div>
