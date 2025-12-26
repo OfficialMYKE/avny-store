@@ -8,7 +8,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Trash2, MessageCircle, ExternalLink } from "lucide-react"; // Agregué icono ExternalLink
+import { ShoppingBag, Trash2, MessageCircle } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useState } from "react";
 
@@ -29,12 +29,15 @@ export const CartSheet = () => {
       message += `   ▪️ Color: ${item.color}\n`;
       message += `   ▪️ Precio: $${item.price.toFixed(2)}\n`;
 
-      // AQUÍ AGREGAMOS LA FOTO
-      // Si la imagen es una URL completa (https://...), WhatsApp mostrará una vista previa
+      // LÓGICA PARA FOTO (ENLACE AZUL)
       if (item.image) {
-        message += `   📷 Foto: ${window.location.origin}${item.image}\n`;
-        // Nota: Si tus imagenes ya vienen con "https://" desde Supabase, usa:
-        // message += `   📷 Foto: ${item.image}\n`;
+        // Determinamos si es ruta absoluta o relativa
+        const imageUrl = item.image.startsWith("http")
+          ? item.image
+          : `${window.location.origin}${item.image}`;
+
+        // Al poner la URL en una línea nueva (\n) WhatsApp la reconoce como enlace
+        message += `📷 Ver Foto:\n${imageUrl}\n`;
       }
     });
 
