@@ -7,12 +7,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Ruler, ArrowRight, ShoppingCart, Heart, Check } from "lucide-react"; // Agregamos "Check"
+import { Ruler, ArrowRight, ShoppingCart, Heart, Check } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { SizeGuide } from "./SizeGuide";
 import { useCart } from "@/context/CartContext";
-import { toast } from "sonner"; // <--- IMPORTAMOS LA NOTIFICACIÓN
+import { toast } from "sonner";
+// 1. IMPORTAMOS EL HOOK DE FAVORITOS
+import { useFavorites } from "@/context/FavoritesContext";
 
 interface Product {
   id: string;
@@ -43,6 +45,9 @@ export const ProductModal = ({
   children,
 }: ProductModalProps) => {
   const { addToCart } = useCart();
+  // 2. USAMOS EL CONTEXTO REAL DE FAVORITOS
+  const { toggleFavorite, isFavorite } = useFavorites();
+
   const [open, setOpen] = useState(false);
   const [viewProduct, setViewProduct] = useState<Product>(product);
 
@@ -50,17 +55,17 @@ export const ProductModal = ({
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [activeImage, setActiveImage] = useState("");
-  const [isFavorite, setIsFavorite] = useState(false);
 
-  // Estado para la animación del botón
   const [isAdded, setIsAdded] = useState(false);
+
+  // Verificamos si ESTE producto específico es favorito
+  const isProductFavorite = isFavorite(viewProduct.id);
 
   useEffect(() => {
     if (open) {
       loadProductData(product);
       setShowSizeGuide(false);
-      setIsFavorite(false);
-      setIsAdded(false); // Resetear botón
+      setIsAdded(false);
     }
   }, [open, product]);
 
@@ -137,7 +142,6 @@ export const ProductModal = ({
     )
     .slice(0, 3);
 
-  // --- LÓGICA DE AGREGAR CON FEEDBACK ---
   const handleAddToCart = () => {
     const finalSize = selectedSize || "Única";
     const finalColor = selectedColor || "Único";
@@ -153,19 +157,26 @@ export const ProductModal = ({
       quantity: 1,
     });
 
-    // 1. Mostrar Notificación (Toast)
     toast.success("¡Producto agregado al carrito!", {
       description: `${viewProduct.title} - ${finalSize} / ${finalColor}`,
-      duration: 3000, // Dura 3 segundos
+      duration: 3000,
     });
 
-    // 2. Animación del Botón
     setIsAdded(true);
     setTimeout(() => {
       setIsAdded(false);
-      // Opcional: Cerrar modal automáticamente después de agregar
-      // setOpen(false);
     }, 2000);
+  };
+
+  // 3. FUNCIÓN PARA MANEJAR FAVORITOS
+  const handleToggleFavorite = () => {
+    toggleFavorite({
+      id: viewProduct.id,
+      title: viewProduct.title,
+      image: viewProduct.image_url,
+      price: currentPrice || 0,
+      category: viewProduct.category,
+    });
   };
 
   return (
@@ -301,30 +312,37 @@ export const ProductModal = ({
             </div>
 
             <div className="flex gap-3 mt-4">
+              {/* BOTÓN DE FAVORITOS CONECTADO */}
               <Button
                 variant="outline"
                 size="icon"
                 className="h-12 w-12 border-zinc-300 hover:border-red-500 hover:bg-red-50 flex-shrink-0"
-                onClick={() => setIsFavorite(!isFavorite)}
-                title="Agregar a Favoritos"
+                onClick={handleToggleFavorite}
+                title={
+                  isProductFavorite
+                    ? "Quitar de Favoritos"
+                    : "Agregar a Favoritos"
+                }
               >
                 <Heart
                   className={cn(
-                    "w-6 h-6 transition-colors",
-                    isFavorite ? "fill-red-500 text-red-500" : "text-zinc-600"
+                    "w-6 h-6 transition-all",
+                    // Si es favorito, lo pintamos de rojo sólido
+                    isProductFavorite
+                      ? "fill-red-500 text-red-500 scale-110"
+                      : "text-zinc-600"
                   )}
                 />
               </Button>
 
-              {/* BOTÓN CON ANIMACIÓN DE ESTADO */}
               <Button
                 onClick={handleAddToCart}
-                disabled={isAdded} // Deshabilitar temporalmente mientras muestra "Agregado"
+                disabled={isAdded}
                 className={cn(
                   "flex-1 h-12 text-base font-bold uppercase tracking-wide gap-2 text-white shadow-md transition-all duration-300",
                   isAdded
-                    ? "bg-green-600 hover:bg-green-700 scale-105" // Estilo Éxito
-                    : "bg-black hover:bg-zinc-800" // Estilo Normal
+                    ? "bg-green-600 hover:bg-green-700 scale-105"
+                    : "bg-black hover:bg-zinc-800"
                 )}
               >
                 {isAdded ? (
