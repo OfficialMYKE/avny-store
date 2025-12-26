@@ -22,8 +22,8 @@ export const CartSheet = () => {
 
     cart.forEach((item, index) => {
       message += `-----------------------------------\n`;
-      message += `🛒 *PRODUCTO ${index + 1}*\n`;
-      message += `📝 *${item.title}*\n`;
+      message += `*PRODUCTO ${index + 1}*\n`;
+      message += `*${item.title}*\n`;
       message += `   ▪️ Talla: ${item.size}\n`;
       message += `   ▪️ Color: ${item.color}\n`;
       message += `   ▪️ Precio: $${item.price.toFixed(2)}\n`;
@@ -49,7 +49,7 @@ export const CartSheet = () => {
     });
 
     message += `-----------------------------------\n`;
-    message += `\n💰 *TOTAL A PAGAR: $${cartTotal.toFixed(2)}*`;
+    message += `\n*TOTAL A PAGAR: $${cartTotal.toFixed(2)}*`;
     message += `\n\nQuedo a la espera de la confirmación y datos de pago.`;
 
     const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(

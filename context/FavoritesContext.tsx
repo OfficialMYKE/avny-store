@@ -8,6 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { toast } from "sonner";
+// Ajusta esta ruta según donde tengas tu carpeta lib (tú dijiste ../app/lib/supabase)
 import { createClient } from "../app/lib/supabase";
 
 type FavoriteItem = {
@@ -27,7 +28,8 @@ type UserContact = {
 
 interface FavoritesContextType {
   favorites: FavoriteItem[];
-  toggleFavorite: (item: FavoriteItem) => void;
+  // MODIFICACIÓN: Ahora acepta un segundo parámetro opcional
+  toggleFavorite: (item: FavoriteItem, manualContact?: UserContact) => void;
   isFavorite: (id: string) => boolean;
   favoritesCount: number;
   userContact: UserContact | null;
@@ -44,18 +46,14 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
   const [userContact, setUserContact] = useState<UserContact | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 1. Cargar de LocalStorage al inicio
   useEffect(() => {
     const storedFavs = localStorage.getItem("avnyc-favorites");
     const storedContact = localStorage.getItem("avnyc-contact");
-
     if (storedFavs) setFavorites(JSON.parse(storedFavs));
     if (storedContact) setUserContact(JSON.parse(storedContact));
-
     setIsInitialized(true);
   }, []);
 
-  // 2. Sincronizar LocalStorage
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem("avnyc-favorites", JSON.stringify(favorites));
@@ -76,15 +74,16 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
     return favorites.some((item) => item.id === id);
   };
 
-  // --- LÓGICA DE GUARDADO EN NUBE ---
+  // --- FUNCIÓN DE GUARDADO EN NUBE ---
   const saveFavoriteToCloud = async (
     item: FavoriteItem,
     contact: UserContact
   ) => {
+    console.log("INTENTANDO GUARDAR EN NUBE:", item.title);
+
     if (!contact.email && !contact.whatsapp) return;
 
     try {
-      // Insertamos en la tabla que creamos en Supabase
       const { error } = await supabase.from("product_favorites").insert({
         product_id: item.id,
         product_title: item.title,
@@ -92,26 +91,32 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
         user_whatsapp: contact.whatsapp || null,
       });
 
-      if (error) console.error("Error guardando lead:", error);
+      if (error) {
+        console.error("Error Supabase:", error.message);
+      } else {
+        console.log("¡GUARDADO EN SUPABASE!");
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const toggleFavorite = (item: FavoriteItem) => {
+  const toggleFavorite = (item: FavoriteItem, manualContact?: UserContact) => {
+    // TRUCO: Usamos el contacto manual si existe, si no, usamos el de la memoria
+    const contactToUse = manualContact || userContact;
+
     if (isFavorite(item.id)) {
       setFavorites((prev) => prev.filter((fav) => fav.id !== item.id));
       toast.info("Eliminado de favoritos");
-      // Opcional: Podrías borrarlo también de Supabase si quisieras
     } else {
       setFavorites((prev) => [...prev, item]);
       toast.success("¡Guardado!", {
         description: "Te avisaremos si hay ofertas.",
       });
 
-      // SI YA TENEMOS CONTACTO, GUARDAMOS EL LEAD EN LA NUBE
-      if (userContact) {
-        saveFavoriteToCloud(item, userContact);
+      // Si tenemos un contacto válido (manual o memoria), guardamos en la nube
+      if (contactToUse) {
+        saveFavoriteToCloud(item, contactToUse);
       }
     }
   };
@@ -124,13 +129,7 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
         isFavorite,
         favoritesCount: favorites.length,
         userContact,
-        // Al guardar contacto nuevo, intentamos sincronizar favoritos pendientes si quisieras
-        saveUserContact: (contact) => {
-          saveUserContact(contact);
-          // Aquí podrías iterar sobre los favoritos actuales y subirlos a Supabase
-          // para asegurar que se guarden los que dio like antes de poner su email.
-          favorites.forEach((fav) => saveFavoriteToCloud(fav, contact));
-        },
+        saveUserContact,
       }}
     >
       {children}

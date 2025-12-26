@@ -18,7 +18,6 @@ import {
   Heart,
   Check,
   Mail,
-  Phone,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -27,7 +26,7 @@ import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import { useFavorites } from "@/context/FavoritesContext";
 
-// --- DEFINICIÓN DE INTERFACES (Esto es lo que faltaba) ---
+// --- DEFINICIÓN DE INTERFACES ---
 interface Product {
   id: string;
   title: string;
@@ -64,7 +63,7 @@ export const ProductModal = ({
 
   // ESTADO PARA EL DIALOGO DE CAPTURA DE DATOS
   const [showContactForm, setShowContactForm] = useState(false);
-  const [tempContact, setTempContact] = useState({ email: "", whatsapp: "" });
+  const [emailInput, setEmailInput] = useState("");
 
   // Estado local del producto
   const [viewProduct, setViewProduct] = useState<Product>(product);
@@ -83,8 +82,10 @@ export const ProductModal = ({
       setShowSizeGuide(false);
       setIsAdded(false);
       setShowContactForm(false);
+      // Pre-llenar si ya tenemos el contacto
+      if (userContact?.email) setEmailInput(userContact.email);
     }
-  }, [open, product]);
+  }, [open, product, userContact]);
 
   const loadProductData = (p: Product) => {
     setViewProduct(p);
@@ -159,13 +160,14 @@ export const ProductModal = ({
     )
     .slice(0, 3);
 
-  // --- LÓGICA DE FAVORITOS MEJORADA ---
+  // --- LÓGICA DE FAVORITOS (SOLO EMAIL) ---
   const handleFavoriteClick = () => {
     if (isProductFavorite) {
       handleToggleAction();
       return;
     }
-    if (userContact) {
+    // Si ya tenemos email guardado, procedemos directo
+    if (userContact?.email) {
       handleToggleAction();
     } else {
       setShowContactForm(true);
@@ -174,28 +176,41 @@ export const ProductModal = ({
 
   const handleSubmitContact = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tempContact.email && !tempContact.whatsapp) {
-      toast.error("Por favor ingresa al menos un método de contacto");
+    if (!emailInput || !emailInput.includes("@")) {
+      toast.error("Por favor ingresa un correo válido");
       return;
     }
-    saveUserContact(tempContact);
+
+    const contactData = { email: emailInput, whatsapp: "" }; // WhatsApp vacío
+
+    // 1. Guardar en memoria
+    saveUserContact(contactData);
     setShowContactForm(false);
-    handleToggleAction();
-    toast.success("¡Datos guardados!", {
-      description: "Te avisaremos de ofertas.",
+
+    // 2. Ejecutar acción
+    handleToggleAction(contactData);
+
+    toast.success("¡Correo guardado!", {
+      description: "Te avisaremos automáticamente de las ofertas.",
     });
   };
 
-  const handleToggleAction = () => {
-    toggleFavorite({
-      id: viewProduct.id,
-      title: viewProduct.title,
-      image: viewProduct.image_url,
-      price: currentPrice || 0,
-      category: viewProduct.category,
-      color: selectedColor || "Único",
-      size: selectedSize || "Única",
-    });
+  const handleToggleAction = (manualContact?: {
+    email: string;
+    whatsapp: string;
+  }) => {
+    toggleFavorite(
+      {
+        id: viewProduct.id,
+        title: viewProduct.title,
+        image: viewProduct.image_url,
+        price: currentPrice || 0,
+        category: viewProduct.category,
+        color: selectedColor || "Único",
+        size: selectedSize || "Única",
+      },
+      manualContact
+    );
   };
 
   const handleAddToCart = () => {
@@ -434,62 +449,41 @@ export const ProductModal = ({
         </div>
       </DialogContent>
 
-      {/* --- SUB-DIALOGO PARA PEDIR DATOS --- */}
+      {/* --- SUB-DIALOGO SOLO EMAIL --- */}
       <Dialog open={showContactForm} onOpenChange={setShowContactForm}>
-        <DialogContent className="sm:max-w-[425px] z-[9999]">
+        <DialogContent className="sm:max-w-[400px] z-[9999]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black italic">
-              ¡No te pierdas las ofertas!
+              ¡Avisame cuando baje!
             </DialogTitle>
             <DialogDescription>
-              Para guardar en favoritos y avisarte si este producto baja de
-              precio, necesitamos saber dónde escribirte.
+              Déjanos tu correo y te enviaremos una alerta automática si este
+              producto entra en oferta.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitContact} className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="email" className="font-bold">
-                Correo Electrónico
+                Tu Correo Electrónico
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
-                  placeholder="tu@email.com"
+                  placeholder="ejemplo@gmail.com"
                   className="pl-9"
-                  value={tempContact.email}
-                  onChange={(e) =>
-                    setTempContact({ ...tempContact, email: e.target.value })
-                  }
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  autoFocus
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold text-center justify-center my-1">
-              - O -
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="whatsapp" className="font-bold">
-                WhatsApp
-              </Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="whatsapp"
-                  placeholder="099..."
-                  className="pl-9"
-                  type="tel"
-                  value={tempContact.whatsapp}
-                  onChange={(e) =>
-                    setTempContact({ ...tempContact, whatsapp: e.target.value })
-                  }
-                />
-              </div>
-            </div>
+
             <Button
               type="submit"
               className="w-full font-bold bg-black text-white mt-2"
             >
-              Guardar y Agregar a Favoritos
+              Guardar Alerta
             </Button>
           </form>
         </DialogContent>

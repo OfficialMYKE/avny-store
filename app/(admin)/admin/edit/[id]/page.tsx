@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../../../lib/supabase";
+import { createClient } from "../../../../lib/supabase"; // Ajusta según tu estructura
 import { useRouter, useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { InterestedUsers } from "@/components/admin/InterestedUsers";
+
+// 1. IMPORTAMOS LA ACCIÓN DE SERVIDOR PARA ENVIAR CORREOS
+import { notifyPriceDrop } from "@/app/actions/notify-users";
 
 // CONSTANTES...
 const CATEGORIES = [
@@ -105,12 +109,9 @@ export default function EditProductPage() {
   const [soldOutColors, setSoldOutColors] = useState<string[]>([]);
 
   // IMÁGENES
-  const [imageFile, setImageFile] = useState<File | null>(null); // Portada nueva
-  // NUEVO: Fotos Extra (Poses)
-  const [existingExtraImages, setExistingExtraImages] = useState<string[]>([]); // URLs existentes
-  const [newExtraFiles, setNewExtraFiles] = useState<File[]>([]); // Archivos nuevos a subir
-
-  // Galería por color
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [existingExtraImages, setExistingExtraImages] = useState<string[]>([]);
+  const [newExtraFiles, setNewExtraFiles] = useState<File[]>([]);
   const [existingGallery, setExistingGallery] = useState<
     { color: string; images: string[] }[]
   >([]);
@@ -148,7 +149,6 @@ export default function EditProductPage() {
       else if (data.size) setSizesData([{ size: data.size, available: true }]);
       if (data.sold_out_colors) setSoldOutColors(data.sold_out_colors);
       if (data.gallery) setExistingGallery(data.gallery);
-      // CARGAR FOTOS EXTRA EXISTENTES
       if (data.extra_images) setExistingExtraImages(data.extra_images);
 
       setLoading(false);
@@ -162,7 +162,6 @@ export default function EditProductPage() {
     >
   ) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // ... (Funciones toggleSize, toggleColorStock igual que antes) ...
   const toggleSize = (size: string) => {
     setSizesData((prev) => {
       const exists = prev.find((s) => s.size === size);
@@ -174,13 +173,14 @@ export default function EditProductPage() {
       return prev.filter((s) => s.size !== size);
     });
   };
+
   const toggleColorStock = (color: string) => {
     setSoldOutColors((prev) =>
       prev.includes(color) ? prev.filter((c) => c !== color) : [...prev, color]
     );
   };
 
-  // MANEJO FOTOS EXTRA (POSES)
+  // MANEJO FOTOS
   const handleNewExtraFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files)
       setNewExtraFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
@@ -190,7 +190,6 @@ export default function EditProductPage() {
   const removeExistingExtraImage = (url: string) =>
     setExistingExtraImages((prev) => prev.filter((img) => img !== url));
 
-  // MANEJO GALERÍA COLOR (Igual que antes)
   const handleNewGalleryFiles = (
     color: string,
     e: React.ChangeEvent<HTMLInputElement>
@@ -243,7 +242,7 @@ export default function EditProductPage() {
         }
       }
 
-      // 2. NUEVO: Subir nuevas fotos extra y combinar con existentes
+      // 2. Fotos Extra
       const newExtraUrls: string[] = [];
       for (const file of newExtraFiles) {
         const fileName = `extra_${Date.now()}_${Math.random()}.${file.name
@@ -261,7 +260,7 @@ export default function EditProductPage() {
       }
       const finalExtraImages = [...existingExtraImages, ...newExtraUrls];
 
-      // 3. Galería de Colores (Igual que antes)
+      // 3. Galería de Colores
       const newUploadedGallery: { color: string; images: string[] }[] = [];
       for (const [color, files] of Object.entries(newGalleryFiles)) {
         if (files.length === 0) continue;
@@ -298,7 +297,7 @@ export default function EditProductPage() {
       if (formData.colors) colorsSet.add(formData.colors);
       finalGalleryData.forEach((g) => colorsSet.add(g.color));
 
-      // GUARDAR
+      // 4. GUARDAR EN SUPABASE
       const { error } = await supabase
         .from("products")
         .update({
@@ -312,7 +311,7 @@ export default function EditProductPage() {
           category: formData.category,
           gender: formData.gender,
           image_url: mainImageUrl,
-          extra_images: finalExtraImages, // GUARDAMOS FOTOS EXTRA
+          extra_images: finalExtraImages,
           colors: Array.from(colorsSet),
           sizes_data: sizesData,
           sold_out_colors: soldOutColors,
@@ -322,6 +321,34 @@ export default function EditProductPage() {
         .eq("id", id);
 
       if (error) throw error;
+
+      // ============================================================
+      // 🚀 AUTOMATIZACIÓN DE CORREOS (RESEND)
+      // ============================================================
+      const oldPrice = parseFloat(formData.price);
+      const newSalePrice = formData.sale_price
+        ? parseFloat(formData.sale_price)
+        : null;
+
+      // Si existe un precio de oferta Y es menor que el precio normal
+      if (newSalePrice && newSalePrice < oldPrice) {
+        console.log("📉 Detectada bajada de precio, enviando correos...");
+
+        // Llamamos a la Server Action (esto ocurre en el servidor)
+        notifyPriceDrop(id, formData.title, newSalePrice, mainImageUrl)
+          .then((res) => {
+            if (res.success) {
+              console.log(`✅ Correos enviados a ${res.count} interesados.`);
+            } else {
+              console.error("❌ Error enviando correos:", res.error);
+            }
+          })
+          .catch((err) =>
+            console.error("❌ Fallo en la llamada al servidor:", err)
+          );
+      }
+      // ============================================================
+
       router.push("/admin/dashboard");
       router.refresh();
     } catch (error) {
@@ -353,7 +380,7 @@ export default function EditProductPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* SECCIÓN 1: INFO GENERAL (Resumida) */}
+          {/* SECCIÓN 1: INFO GENERAL */}
           <div className="grid gap-4 p-5 border rounded-lg bg-zinc-50/50">
             <h3 className="font-bold text-sm text-muted-foreground uppercase">
               Información General
@@ -453,7 +480,7 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 2: TALLAS (Resumida) */}
+          {/* SECCIÓN 2: TALLAS */}
           <div className="p-5 border rounded-lg bg-zinc-50/50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-sm text-muted-foreground uppercase flex gap-2 items-center">
@@ -512,6 +539,7 @@ export default function EditProductPage() {
             </div>
           </div>
 
+          {/* SECCIÓN 3: IMÁGENES PORTADA */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Portada</Label>
@@ -549,12 +577,11 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* NUEVA SECCIÓN: FOTOS ADICIONALES (POSES) - EDITAR */}
+          {/* SECCIÓN 4: FOTOS ADICIONALES */}
           <div className="space-y-2 p-4 border rounded-lg bg-zinc-50">
             <div className="flex justify-between items-center mb-2">
               <Label className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4" /> Otras Poses / Ángulos
-                (General)
               </Label>
               <label className="cursor-pointer text-xs bg-black text-white px-3 py-1.5 rounded-md flex items-center gap-1">
                 <Plus size={12} /> Agregar Fotos
@@ -568,7 +595,6 @@ export default function EditProductPage() {
               </label>
             </div>
             <div className="flex gap-2 overflow-x-auto py-2">
-              {/* Fotos existentes */}
               {existingExtraImages.map((img, idx) => (
                 <div
                   key={`old-extra-${idx}`}
@@ -587,7 +613,6 @@ export default function EditProductPage() {
                   </button>
                 </div>
               ))}
-              {/* Fotos nuevas a subir */}
               {newExtraFiles.map((file, idx) => (
                 <div
                   key={`new-extra-${idx}`}
@@ -607,14 +632,9 @@ export default function EditProductPage() {
                 </div>
               ))}
             </div>
-            {existingExtraImages.length === 0 && newExtraFiles.length === 0 && (
-              <p className="text-xs text-muted-foreground italic">
-                No hay fotos adicionales.
-              </p>
-            )}
           </div>
 
-          {/* SECCIÓN 4: VARIANTES POR COLOR (Resumida) */}
+          {/* SECCIÓN 5: VARIANTES POR COLOR */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2">
               Variantes Específicas por Color
@@ -714,6 +734,15 @@ export default function EditProductPage() {
           >
             {saving ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}
           </Button>
+
+          {/* 6. LISTA DE INTERESADOS (Visor Manual) */}
+          <div className="pt-10 border-t">
+            <InterestedUsers
+              productId={id}
+              productTitle={formData.title}
+              currentPrice={parseFloat(formData.sale_price || formData.price)}
+            />
+          </div>
         </form>
       </div>
     </div>
