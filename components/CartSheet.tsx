@@ -16,9 +16,8 @@ export const CartSheet = () => {
   const { cart, removeFromCart, cartTotal, cartCount } = useCart();
   const [isOpen, setIsOpen] = useState(false);
 
-  // --- LÓGICA WHATSAPP ACTUALIZADA ---
   const handleCheckout = () => {
-    const phoneNumber = "593986355332"; // Tu número
+    const phoneNumber = "593986355332";
     let message = "*Hola AVNYC, quiero realizar el siguiente pedido:*\n\n";
 
     cart.forEach((item, index) => {
@@ -29,14 +28,21 @@ export const CartSheet = () => {
       message += `   ▪️ Color: ${item.color}\n`;
       message += `   ▪️ Precio: $${item.price.toFixed(2)}\n`;
 
-      // LÓGICA PARA FOTO (ENLACE AZUL)
+      // --- CORRECCIÓN DE URL DE IMAGEN ---
       if (item.image) {
-        // Determinamos si es ruta absoluta o relativa
-        const imageUrl = item.image.startsWith("http")
-          ? item.image
-          : `${window.location.origin}${item.image}`;
+        const cleanImage = item.image.trim();
 
-        // Al poner la URL en una línea nueva (\n) WhatsApp la reconoce como enlace
+        // Verificamos si la imagen YA es un link completo (viene de Supabase)
+        const isAbsoluteUrl = cleanImage.startsWith("http");
+
+        // Si ya es absoluta, usamos la imagen tal cual. Si no, le agregamos el dominio.
+        const imageUrl = isAbsoluteUrl
+          ? cleanImage
+          : `${window.location.origin}${
+              cleanImage.startsWith("/") ? "" : "/"
+            }${cleanImage}`;
+
+        // El \n al inicio y final asegura que WhatsApp lo ponga azul
         message += `📷 Ver Foto:\n${imageUrl}\n`;
       }
     });
