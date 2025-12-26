@@ -13,10 +13,12 @@ import {
   Ruler,
   Plus,
   Box,
-} from "lucide-react"; // Agregué Box
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+// CONSTANTES IGUALES QUE ANTES...
 const CATEGORIES = [
   "Camisetas",
   "Hoodies",
@@ -83,9 +85,10 @@ export default function CreateProduct() {
 
   const [formData, setFormData] = useState({
     title: "",
+    description: "",
     price: "",
     sale_price: "",
-    stock: "1", // NUEVO CAMPO: STOCK
+    stock: "1",
     category: "",
     colors: "",
     gender: "Unisex",
@@ -95,11 +98,16 @@ export default function CreateProduct() {
     { size: string; available: boolean }[]
   >([]);
   const [soldOutColors, setSoldOutColors] = useState<string[]>([]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [galleryFiles, setGalleryFiles] = useState<Record<string, File[]>>({});
+
+  // IMÁGENES
+  const [imageFile, setImageFile] = useState<File | null>(null); // Portada
+  const [extraFiles, setExtraFiles] = useState<File[]>([]); // NUEVO: Fotos de poses/ángulos
+  const [galleryFiles, setGalleryFiles] = useState<Record<string, File[]>>({}); // Variantes por color
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -114,6 +122,16 @@ export default function CreateProduct() {
         );
       return prev.filter((s) => s.size !== size);
     });
+  };
+
+  // Manejar fotos extra (poses)
+  const handleExtraFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setExtraFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+  const removeExtraFile = (index: number) => {
+    setExtraFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleGalleryChange = (
@@ -134,6 +152,7 @@ export default function CreateProduct() {
     setLoading(true);
 
     try {
+      // 1. Subir Portada
       let mainImageUrl = "";
       if (imageFile) {
         const fileName = `main_${Date.now()}.${imageFile.name
@@ -150,6 +169,24 @@ export default function CreateProduct() {
         }
       }
 
+      // 2. NUEVO: Subir Fotos Extra (Poses)
+      const extraImagesUrls: string[] = [];
+      for (const file of extraFiles) {
+        const fileName = `extra_${Date.now()}_${Math.random()}.${file.name
+          .split(".")
+          .pop()}`;
+        const { error } = await supabase.storage
+          .from("images")
+          .upload(fileName, file);
+        if (!error) {
+          const { data } = supabase.storage
+            .from("images")
+            .getPublicUrl(fileName);
+          extraImagesUrls.push(data.publicUrl);
+        }
+      }
+
+      // 3. Subir Galería por Color
       const galleryData: { color: string; images: string[] }[] = [];
       for (const [color, files] of Object.entries(galleryFiles)) {
         if (files.length === 0) continue;
@@ -179,15 +216,17 @@ export default function CreateProduct() {
       const { error } = await supabase.from("products").insert([
         {
           title: formData.title,
+          description: formData.description,
           price: parseFloat(formData.price),
           sale_price: formData.sale_price
             ? parseFloat(formData.sale_price)
             : null,
-          stock: parseInt(formData.stock) || 1, // GUARDAR STOCK
+          stock: parseInt(formData.stock) || 1,
           category: formData.category,
           gender: formData.gender,
           colors: Array.from(colorsSet),
           image_url: mainImageUrl,
+          extra_images: extraImagesUrls, // GUARDAMOS LAS NUEVAS FOTOS
           gallery: galleryData,
           sizes_data: sizesData,
           sold_out_colors: soldOutColors,
@@ -221,6 +260,7 @@ export default function CreateProduct() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* SECCIÓN 1: INFO GENERAL (Sin cambios) */}
           <div className="grid gap-4 p-5 border rounded-lg bg-zinc-50/50">
             <h3 className="font-bold text-sm text-muted-foreground uppercase">
               Información General
@@ -235,8 +275,16 @@ export default function CreateProduct() {
                 placeholder="Ej: Camiseta Mickey Vintage"
               />
             </div>
-
-            {/* FILA DE PRECIOS Y STOCK */}
+            <div className="space-y-1">
+              <Label>Descripción & Detalles</Label>
+              <textarea
+                name="description"
+                rows={4}
+                onChange={handleChange}
+                className="flex w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                placeholder="Describe el estado..."
+              />
+            </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
                 <Label>Precio ($)</Label>
@@ -259,7 +307,6 @@ export default function CreateProduct() {
                   className="bg-white border-red-100"
                 />
               </div>
-              {/* CAMPO STOCK */}
               <div className="space-y-1">
                 <Label className="flex items-center gap-1">
                   <Box size={14} /> Stock
@@ -275,7 +322,6 @@ export default function CreateProduct() {
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Categoría</Label>
@@ -315,6 +361,7 @@ export default function CreateProduct() {
             </div>
           </div>
 
+          {/* SECCIÓN 2: TALLAS (Sin cambios, resumido) */}
           <div className="p-5 border rounded-lg bg-zinc-50/50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-sm text-muted-foreground uppercase flex gap-2 items-center">
@@ -373,6 +420,7 @@ export default function CreateProduct() {
             </div>
           </div>
 
+          {/* SECCIÓN 3: FOTOS PRINCIPALES Y POSES (MODIFICADO) */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Foto Portada</Label>
@@ -406,9 +454,52 @@ export default function CreateProduct() {
             </div>
           </div>
 
+          {/* NUEVA SECCIÓN: FOTOS ADICIONALES (POSES) */}
+          <div className="space-y-2 p-4 border rounded-lg bg-zinc-50">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" /> Otras Poses / Ángulos
+                (Opcional)
+              </Label>
+              <label className="cursor-pointer text-xs bg-black text-white px-3 py-1.5 rounded-md flex items-center gap-1">
+                <Plus size={12} /> Agregar Fotos
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleExtraFilesChange}
+                />
+              </label>
+            </div>
+            {extraFiles.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto py-2">
+                {extraFiles.map((file, idx) => (
+                  <div
+                    key={idx}
+                    className="relative w-16 h-16 flex-shrink-0 group"
+                  >
+                    <img
+                      src={URL.createObjectURL(file)}
+                      className="w-full h-full object-cover rounded border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExtraFile(idx)}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* SECCIÓN 4: VARIANTES POR COLOR (Sin cambios) */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> Variantes (Opcional)
+              Variantes Específicas por Color (Opcional)
             </Label>
             <div className="grid gap-6 p-4 border rounded-lg bg-zinc-50">
               {COLORS.map((color) => (

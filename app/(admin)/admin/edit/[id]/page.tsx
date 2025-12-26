@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../../../lib/supabase"; // Asegúrate de que esta ruta sea correcta
+import { createClient } from "../../../../lib/supabase";
 import { useRouter, useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-// LISTAS MAESTRAS
+// CONSTANTES...
 const CATEGORIES = [
   "Camisetas",
   "Hoodies",
@@ -87,24 +87,30 @@ export default function EditProductPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // ESTADO DEL FORMULARIO
   const [formData, setFormData] = useState({
     title: "",
+    description: "",
     price: "",
     sale_price: "",
-    stock: "", // Iniciamos como string vacío para evitar ceros molestos
+    stock: "",
     category: "",
     gender: "Unisex",
     colors: "",
     image_url: "",
   });
 
-  // ESTADOS AUXILIARES
   const [sizesData, setSizesData] = useState<
     { size: string; available: boolean }[]
   >([]);
   const [soldOutColors, setSoldOutColors] = useState<string[]>([]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+
+  // IMÁGENES
+  const [imageFile, setImageFile] = useState<File | null>(null); // Portada nueva
+  // NUEVO: Fotos Extra (Poses)
+  const [existingExtraImages, setExistingExtraImages] = useState<string[]>([]); // URLs existentes
+  const [newExtraFiles, setNewExtraFiles] = useState<File[]>([]); // Archivos nuevos a subir
+
+  // Galería por color
   const [existingGallery, setExistingGallery] = useState<
     { color: string; images: string[] }[]
   >([]);
@@ -112,7 +118,6 @@ export default function EditProductPage() {
     Record<string, File[]>
   >({});
 
-  // 1. CARGAR DATOS
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) return;
@@ -130,38 +135,34 @@ export default function EditProductPage() {
 
       setFormData({
         title: data.title || "",
+        description: data.description || "",
         price: data.price?.toString() || "",
         sale_price: data.sale_price?.toString() || "",
-        // CORRECCIÓN: Si es null o undefined, ponemos "0".
-        stock:
-          data.stock !== null && data.stock !== undefined
-            ? data.stock.toString()
-            : "0",
+        stock: data.stock !== null ? data.stock.toString() : "0",
         category: data.category || "",
         gender: data.gender || "Unisex",
         colors: Array.isArray(data.colors) ? data.colors[0] : data.colors || "",
         image_url: data.image_url || "",
       });
-
       if (data.sizes_data) setSizesData(data.sizes_data);
       else if (data.size) setSizesData([{ size: data.size, available: true }]);
-
       if (data.sold_out_colors) setSoldOutColors(data.sold_out_colors);
       if (data.gallery) setExistingGallery(data.gallery);
+      // CARGAR FOTOS EXTRA EXISTENTES
+      if (data.extra_images) setExistingExtraImages(data.extra_images);
 
       setLoading(false);
     };
-
     fetchProduct();
   }, [id, router]);
 
-  // MANEJADORES DE ESTADO
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+  // ... (Funciones toggleSize, toggleColorStock igual que antes) ...
   const toggleSize = (size: string) => {
     setSizesData((prev) => {
       const exists = prev.find((s) => s.size === size);
@@ -173,33 +174,39 @@ export default function EditProductPage() {
       return prev.filter((s) => s.size !== size);
     });
   };
-
   const toggleColorStock = (color: string) => {
     setSoldOutColors((prev) =>
       prev.includes(color) ? prev.filter((c) => c !== color) : [...prev, color]
     );
   };
 
+  // MANEJO FOTOS EXTRA (POSES)
+  const handleNewExtraFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files)
+      setNewExtraFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+  };
+  const removeNewExtraFile = (index: number) =>
+    setNewExtraFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeExistingExtraImage = (url: string) =>
+    setExistingExtraImages((prev) => prev.filter((img) => img !== url));
+
+  // MANEJO GALERÍA COLOR (Igual que antes)
   const handleNewGalleryFiles = (
     color: string,
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
+    if (e.target.files)
       setNewGalleryFiles((prev) => ({
         ...prev,
-        [color]: [...(prev[color] || []), ...files],
+        [color]: [...(prev[color] || []), ...Array.from(e.target.files!)],
       }));
-    }
   };
-
   const removeNewFile = (color: string, index: number) => {
     setNewGalleryFiles((prev) => ({
       ...prev,
       [color]: prev[color].filter((_, i) => i !== index),
     }));
   };
-
   const removeExistingImage = (color: string, imgUrl: string) => {
     setExistingGallery((prev) =>
       prev
@@ -215,13 +222,11 @@ export default function EditProductPage() {
     );
   };
 
-  // 2. GUARDAR DATOS (SUBMIT)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-
     try {
-      // A. Subir imagen principal si cambió
+      // 1. Portada
       let mainImageUrl = formData.image_url;
       if (imageFile) {
         const fileName = `main_${Date.now()}.${imageFile.name
@@ -238,7 +243,25 @@ export default function EditProductPage() {
         }
       }
 
-      // B. Subir galería nueva
+      // 2. NUEVO: Subir nuevas fotos extra y combinar con existentes
+      const newExtraUrls: string[] = [];
+      for (const file of newExtraFiles) {
+        const fileName = `extra_${Date.now()}_${Math.random()}.${file.name
+          .split(".")
+          .pop()}`;
+        const { error } = await supabase.storage
+          .from("images")
+          .upload(fileName, file);
+        if (!error) {
+          const { data } = supabase.storage
+            .from("images")
+            .getPublicUrl(fileName);
+          newExtraUrls.push(data.publicUrl);
+        }
+      }
+      const finalExtraImages = [...existingExtraImages, ...newExtraUrls];
+
+      // 3. Galería de Colores (Igual que antes)
       const newUploadedGallery: { color: string; images: string[] }[] = [];
       for (const [color, files] of Object.entries(newGalleryFiles)) {
         if (files.length === 0) continue;
@@ -259,8 +282,6 @@ export default function EditProductPage() {
         }
         newUploadedGallery.push({ color, images: urls });
       }
-
-      // C. Combinar galerías
       const finalGalleryMap = new Map<string, string[]>();
       existingGallery.forEach((item) =>
         finalGalleryMap.set(item.color, item.images)
@@ -273,29 +294,25 @@ export default function EditProductPage() {
         ([color, images]) => ({ color, images })
       );
 
-      // D. Preparar Colores
       const colorsSet = new Set<string>();
       if (formData.colors) colorsSet.add(formData.colors);
       finalGalleryData.forEach((g) => colorsSet.add(g.color));
 
-      // E. ACTUALIZAR BASE DE DATOS
+      // GUARDAR
       const { error } = await supabase
         .from("products")
         .update({
           title: formData.title,
+          description: formData.description,
           price: parseFloat(formData.price),
           sale_price: formData.sale_price
             ? parseFloat(formData.sale_price)
             : null,
-
-          // --- CORRECCIÓN CLAVE AQUÍ ---
-          // Usamos Number() en vez de parseInt para mayor precisión.
           stock: Number(formData.stock),
-          // -----------------------------
-
           category: formData.category,
           gender: formData.gender,
           image_url: mainImageUrl,
+          extra_images: finalExtraImages, // GUARDAMOS FOTOS EXTRA
           colors: Array.from(colorsSet),
           sizes_data: sizesData,
           sold_out_colors: soldOutColors,
@@ -305,8 +322,6 @@ export default function EditProductPage() {
         .eq("id", id);
 
       if (error) throw error;
-
-      // Redirigir al panel
       router.push("/admin/dashboard");
       router.refresh();
     } catch (error) {
@@ -338,12 +353,11 @@ export default function EditProductPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* SECCIÓN 1: DATOS GENERALES */}
+          {/* SECCIÓN 1: INFO GENERAL (Resumida) */}
           <div className="grid gap-4 p-5 border rounded-lg bg-zinc-50/50">
             <h3 className="font-bold text-sm text-muted-foreground uppercase">
               Información General
             </h3>
-
             <div className="space-y-1">
               <Label>Nombre</Label>
               <Input
@@ -354,7 +368,16 @@ export default function EditProductPage() {
                 required
               />
             </div>
-
+            <div className="space-y-1">
+              <Label>Descripción & Detalles</Label>
+              <textarea
+                name="description"
+                rows={4}
+                value={formData.description}
+                onChange={handleChange}
+                className="flex w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+              />
+            </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
                 <Label>Precio ($)</Label>
@@ -379,8 +402,6 @@ export default function EditProductPage() {
                   className="bg-white border-red-100"
                 />
               </div>
-
-              {/* CAMPO STOCK CORREGIDO */}
               <div className="space-y-1">
                 <Label className="flex items-center gap-1">
                   <Box size={14} /> Stock
@@ -391,12 +412,11 @@ export default function EditProductPage() {
                   min="0"
                   value={formData.stock}
                   onChange={handleChange}
-                  className="bg-white border-blue-200 font-bold text-blue-900"
+                  className="bg-white border-blue-200"
                   required
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Categoría</Label>
@@ -433,9 +453,8 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 2: TALLAS */}
+          {/* SECCIÓN 2: TALLAS (Resumida) */}
           <div className="p-5 border rounded-lg bg-zinc-50/50">
-            {/* ... (código de tallas igual que antes) ... */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-sm text-muted-foreground uppercase flex gap-2 items-center">
                 <Ruler size={16} /> Tallas Disponibles
@@ -493,7 +512,6 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 3: FOTOS */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Portada</Label>
@@ -531,11 +549,75 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 4: VARIANTES */}
+          {/* NUEVA SECCIÓN: FOTOS ADICIONALES (POSES) - EDITAR */}
+          <div className="space-y-2 p-4 border rounded-lg bg-zinc-50">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" /> Otras Poses / Ángulos
+                (General)
+              </Label>
+              <label className="cursor-pointer text-xs bg-black text-white px-3 py-1.5 rounded-md flex items-center gap-1">
+                <Plus size={12} /> Agregar Fotos
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleNewExtraFiles}
+                />
+              </label>
+            </div>
+            <div className="flex gap-2 overflow-x-auto py-2">
+              {/* Fotos existentes */}
+              {existingExtraImages.map((img, idx) => (
+                <div
+                  key={`old-extra-${idx}`}
+                  className="relative w-16 h-16 flex-shrink-0 group"
+                >
+                  <img
+                    src={img}
+                    className="w-full h-full object-cover rounded border border-green-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeExistingExtraImage(img)}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              {/* Fotos nuevas a subir */}
+              {newExtraFiles.map((file, idx) => (
+                <div
+                  key={`new-extra-${idx}`}
+                  className="relative w-16 h-16 flex-shrink-0 group"
+                >
+                  <img
+                    src={URL.createObjectURL(file)}
+                    className="w-full h-full object-cover rounded border border-blue-300 opacity-70"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeNewExtraFile(idx)}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {existingExtraImages.length === 0 && newExtraFiles.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">
+                No hay fotos adicionales.
+              </p>
+            )}
+          </div>
+
+          {/* SECCIÓN 4: VARIANTES POR COLOR (Resumida) */}
           <div className="space-y-4">
-            {/* ... (código de galería igual que antes, solo asegúrate de cerrar bien los maps) ... */}
             <Label className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> Variantes (Stock & Fotos)
+              Variantes Específicas por Color
             </Label>
             <div className="grid gap-6 p-4 border rounded-lg bg-zinc-50">
               {COLORS.map((color) => {

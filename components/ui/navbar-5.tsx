@@ -1,6 +1,12 @@
 "use client";
 
-import { MenuIcon, Search, PackageSearch, Tag } from "lucide-react";
+import {
+  MenuIcon,
+  Search,
+  PackageSearch,
+  Tag,
+  ChevronRight,
+} from "lucide-react";
 import { useState } from "react";
 import {
   Accordion,
@@ -17,7 +23,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
-} from "./navigation-menu";
+} from "@/components/ui/navigation-menu";
 import {
   Sheet,
   SheetContent,
@@ -26,6 +32,10 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import Link from "next/link";
+
+// 1. IMPORTAR EL CARRITO
+// ".." sube un nivel para salir de la carpeta "ui" y buscar en "components"
+import { CartSheet } from "../CartSheet";
 
 interface NavbarProps {
   onCategoryChange: (category: string) => void;
@@ -40,58 +50,62 @@ export const Navbar5 = ({
 }: NavbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // CATEGORÍAS
-  const categories = [
+  // 1. CATEGORÍAS PRINCIPALES (Género/Edad)
+  const mainCategories = [
     {
       title: "Hombres",
-      description: "Colección vintage masculina.",
       value: "Hombre",
+      description: "Colección vintage masculina.",
     },
     {
       title: "Mujeres",
-      description: "Moda y estilo femenino.",
       value: "Mujer",
+      description: "Moda y estilo femenino.",
     },
-    { title: "Niños", description: "Ropa para los pequeños.", value: "Niños" },
+    {
+      title: "Niños",
+      value: "Niños",
+      description: "Ropa para los pequeños.",
+    },
+  ];
+
+  // 2. TIPOS DE PRENDA (Subcategorías)
+  const productTypes = [
     {
       title: "Hoodies & Sweatshirts",
-      description: "Sudaderas vintage Nike, Champion y más.",
+      description: "Sudaderas Nike, Champion.",
       value: "Hoodies",
     },
     {
       title: "Jackets & Coats",
-      description: "Chaquetas universitarias y abrigo.",
+      description: "Chaquetas y abrigos.",
       value: "Jackets",
     },
     {
       title: "T-Shirts Graphic",
-      description: "Camisetas estampadas de los 90s y 2000s.",
+      description: "Camisetas estampadas 90s.",
       value: "T-Shirts",
     },
     {
       title: "Pants & Denim",
-      description: "Jeans Levi's, Dickies y pantalones cargo.",
+      description: "Jeans Levi's y cargo.",
       value: "Pants",
     },
     {
       title: "Shoes & Sneakers",
-      description: "Jordans, Nike SB, botas y calzado vintage.",
+      description: "Jordans y botas.",
       value: "Shoes",
     },
     {
       title: "Accessories",
-      description: "Gorras y bolsos para complementar.",
+      description: "Gorras y bolsos.",
       value: "Accessories",
-    },
-    {
-      title: "Ver Todo",
-      description: "Explora el catálogo completo.",
-      value: "Todos",
     },
   ];
 
   const handleCategoryClick = (val: string) => {
     let filterValue = val;
+    // Mapeo de valores (opcional)
     if (val === "T-Shirts") filterValue = "Camisetas";
     if (val === "Pants") filterValue = "Pantalones";
     if (val === "Jackets") filterValue = "Chaquetas";
@@ -106,7 +120,7 @@ export const Navbar5 = ({
     <section className="py-4 bg-white border-b sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4">
         <nav className="flex items-center justify-between">
-          {/* LOGO */}
+          {/* --- LOGO --- */}
           <div
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => onCategoryChange("Todos")}
@@ -116,42 +130,60 @@ export const Navbar5 = ({
             </span>
           </div>
 
-          {/* MENÚ DE ESCRITORIO */}
+          {/* --- MENÚ DE ESCRITORIO --- */}
           <NavigationMenu className="hidden lg:block">
             <NavigationMenuList>
-              {/* Dropdown Catálogo */}
-              <NavigationMenuItem>
-                <NavigationMenuTrigger>Catálogo</NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <div className="grid w-[600px] grid-cols-2 p-3 gap-2">
-                    {categories.map((cat, index) => (
-                      <div
-                        key={index}
-                        className="rounded-md p-3 transition-colors hover:bg-zinc-100 cursor-pointer block"
-                        onClick={() => handleCategoryClick(cat.value)}
-                      >
-                        <div>
-                          <p className="mb-1 font-semibold text-foreground leading-none">
-                            {cat.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {cat.description}
+              {/* Dropdowns: Hombres, Mujeres, Niños */}
+              {mainCategories.map((mainCat) => (
+                <NavigationMenuItem key={mainCat.value}>
+                  <NavigationMenuTrigger>{mainCat.title}</NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                      {/* Opción Principal: Ver todo */}
+                      <li className="col-span-2">
+                        <div
+                          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-zinc-100 hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer bg-zinc-50 border"
+                          onClick={() => handleCategoryClick(mainCat.value)}
+                        >
+                          <div className="text-sm font-bold leading-none flex items-center">
+                            Ver todo {mainCat.title}
+                            <ChevronRight className="ml-2 h-4 w-4" />
+                          </div>
+                          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground mt-1">
+                            {mainCat.description}
                           </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
+                      </li>
 
-              {/* Nuevos Drops */}
+                      {/* Subcategorías */}
+                      {productTypes.map((sub) => (
+                        <li key={sub.value}>
+                          <div
+                            className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-zinc-100 hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                            onClick={() => handleCategoryClick(sub.value)}
+                          >
+                            <div className="text-sm font-medium leading-none">
+                              {sub.title}
+                            </div>
+                            <p className="line-clamp-2 text-xs leading-snug text-muted-foreground mt-1">
+                              {sub.description}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+              ))}
+
+              {/* Link: Nuevos Drops */}
               <NavigationMenuItem>
                 <Link href="#" className={navigationMenuTriggerStyle()}>
                   Nuevos Drops
                 </Link>
               </NavigationMenuItem>
 
-              {/* BOTÓN DESCUENTOS (TEXTO NEGRO) */}
+              {/* Botón: Descuentos (Escritorio mantiene icono) */}
               <NavigationMenuItem>
                 <button
                   onClick={() => onCategoryChange("Ofertas")}
@@ -164,7 +196,7 @@ export const Navbar5 = ({
             </NavigationMenuList>
           </NavigationMenu>
 
-          {/* DERECHA: BUSCADOR, PEDIDOS E INGRESAR */}
+          {/* --- DERECHA: ICONOS --- */}
           <div className="hidden lg:flex items-center gap-4">
             <div className="relative w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -176,6 +208,10 @@ export const Navbar5 = ({
               />
             </div>
 
+            {/* 2. AQUÍ AGREGAMOS EL CARRITO */}
+            <CartSheet />
+
+            {/* Botón antiguo de WhatsApp (Opcional: Si quieres mantenerlo o quitarlo ya que el carrito hace lo mismo) */}
             <Button
               variant="outline"
               size="icon"
@@ -197,7 +233,7 @@ export const Navbar5 = ({
             </Button>
           </div>
 
-          {/* MENÚ MÓVIL (SHEET) */}
+          {/* --- MENÚ MÓVIL (SHEET) --- */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild className="lg:hidden">
               <Button variant="outline" size="icon">
@@ -214,8 +250,9 @@ export const Navbar5 = ({
                 </SheetTitle>
               </SheetHeader>
 
-              <div className="flex flex-col gap-6 mt-6">
-                <div className="relative">
+              <div className="flex flex-col mt-6">
+                {/* Buscador Móvil */}
+                <div className="relative mb-6">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
@@ -225,39 +262,60 @@ export const Navbar5 = ({
                   />
                 </div>
 
-                {/* Enlace Móvil: DESCUENTOS (TEXTO NEGRO) */}
+                {/* Enlace Móvil: VER OFERTAS (Sin icono, mismo estilo que categorías) */}
                 <button
                   onClick={() => handleCategoryClick("Ofertas")}
-                  className="flex items-center justify-center gap-2 text-lg font-black text-black bg-zinc-100 p-3 rounded-md"
+                  className="w-full py-4 text-base font-bold border-b text-left hover:text-muted-foreground transition-colors"
                 >
-                  <Tag className="w-5 h-5" /> Ver Ofertas & Descuentos
+                  Ver Ofertas
                 </button>
 
+                {/* Acordeón de Categorías */}
                 <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="categorias" className="border-none">
-                    <AccordionTrigger className="text-base font-bold">
-                      Categorías
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="flex flex-col gap-2 pl-4">
-                        {categories.map((cat, index) => (
+                  {mainCategories.map((mainCat, index) => (
+                    <AccordionItem
+                      key={index}
+                      value={mainCat.value}
+                      className="border-b"
+                    >
+                      <AccordionTrigger className="text-base font-bold hover:no-underline py-4">
+                        {mainCat.title}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="flex flex-col gap-1 pl-4 border-l-2 border-zinc-100 ml-1 mb-2">
                           <button
-                            key={index}
-                            className="text-left py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={() => handleCategoryClick(cat.value)}
+                            className="text-left py-2 text-sm font-bold text-black hover:text-muted-foreground transition-colors"
+                            onClick={() => handleCategoryClick(mainCat.value)}
                           >
-                            {cat.title}
+                            Ver todo {mainCat.title}
                           </button>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
+
+                          {productTypes.map((sub, idx) => (
+                            <button
+                              key={idx}
+                              className="text-left py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={() => handleCategoryClick(sub.value)}
+                            >
+                              {sub.title}
+                            </button>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
                 </Accordion>
 
-                <div className="flex flex-col gap-4 font-medium border-t pt-4">
-                  <Link href="#" className="py-2 hover:underline">
+                {/* Otros enlaces móviles */}
+                <div className="flex flex-col font-bold border-b">
+                  <Link
+                    href="#"
+                    className="py-4 text-base hover:underline flex items-center justify-between"
+                  >
                     Nuevos Drops
                   </Link>
+                </div>
+
+                <div className="mt-4">
                   <Link
                     href="/login"
                     className="py-2 hover:underline text-muted-foreground text-sm"

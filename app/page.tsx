@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-// Si usas rutas manuales ../../../lib/supabase ajústalo aquí, si no, usa @/lib/supabase
 import { createClient } from "./lib/supabase";
 import { Navbar5 } from "@/components/ui/navbar-5";
-import { ProductModal } from "@/components/product-modal"; // Asegúrate que esta ruta sea correcta
+import { ProductModal } from "@/components/product-modal";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils"; // O usa tu función auxiliar si no tienes esta importación
+import { cn } from "@/lib/utils";
 
 export default function Home() {
   const supabase = createClient();
@@ -25,7 +24,7 @@ export default function Home() {
     const { data } = await supabase
       .from("products")
       .select("*")
-      // .eq("is_sold", false) <--- ELIMINAMOS ESTA LÍNEA PARA TRAER TAMBIÉN LO VENDIDO
+      .gt("stock", 0) // <--- AQUÍ ESTÁ EL CAMBIO: Solo trae productos con stock mayor a 0
       .order("created_at", { ascending: false });
 
     if (data) setProducts(data);
@@ -44,8 +43,8 @@ export default function Home() {
     if (filter === "Todos") {
       matchesCategory = true;
     } else if (filter === "Ofertas") {
-      // Solo mostramos ofertas SI el producto NO está vendido
-      matchesCategory = p.sale_price && p.sale_price < p.price && !p.is_sold;
+      // Solo mostramos ofertas. Ya no hace falta chequear stock aquí porque la BD ya lo filtró
+      matchesCategory = p.sale_price && p.sale_price < p.price;
     } else if (["Hombre", "Mujer", "Niños"].includes(filter)) {
       if (filter === "Niños") {
         matchesCategory = p.gender === "Niños";
@@ -125,8 +124,9 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4 md:gap-x-8">
             {filteredProducts.map((product) => {
-              // Lógica de visualización
-              const isSoldOut = product.is_sold; // ¿Está vendido?
+              // Como filtramos en DB, esto siempre será falso en esta vista,
+              // pero lo dejamos por si usas la tarjeta en otro lado.
+              const isSoldOut = (product.stock || 0) <= 0;
 
               const hasDiscount =
                 product.sale_price && product.sale_price < product.price;
@@ -140,31 +140,26 @@ export default function Home() {
                 : 0;
 
               return (
-                <ProductModal key={product.id} product={product}>
+                <ProductModal
+                  key={product.id}
+                  product={product}
+                  allProducts={products}
+                >
                   <div
                     className={cn(
                       "group bg-transparent h-full flex flex-col cursor-pointer",
-                      isSoldOut && "opacity-75" // Si está vendido, lo hacemos un poco transparente
+                      isSoldOut && "opacity-75"
                     )}
                   >
                     {/* FOTO CARD */}
                     <div className="aspect-[3/4] w-full overflow-hidden bg-zinc-100 relative rounded-sm mb-3">
-                      {/* ETIQUETA SOLD OUT (Encima de todo) */}
-                      {isSoldOut && (
-                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/30 backdrop-blur-[1px]">
-                          <span className="bg-black text-white px-4 py-1 text-sm md:text-base font-black uppercase -rotate-12 border-2 border-white shadow-xl tracking-widest">
-                            Sold Out
-                          </span>
-                        </div>
-                      )}
-
                       {product.image_url ? (
                         <img
                           src={product.image_url}
                           alt={product.title}
                           className={cn(
                             "object-cover w-full h-full transition-transform duration-700 group-hover:scale-105",
-                            isSoldOut && "grayscale" // Foto en blanco y negro si está vendido
+                            isSoldOut && "grayscale"
                           )}
                         />
                       ) : (
@@ -173,7 +168,7 @@ export default function Home() {
                         </div>
                       )}
 
-                      {/* BADGES (Talla y Descuento) - Solo si NO está vendido */}
+                      {/* BADGES (Talla y Descuento) */}
                       {!isSoldOut && (
                         <>
                           <div className="absolute top-2 right-2 bg-white/90 backdrop-blur text-black px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm z-10 shadow-sm">
@@ -201,14 +196,13 @@ export default function Home() {
                         <span
                           className={cn(
                             "text-sm font-black",
-                            hasDiscount ? "text-red-600" : "text-zinc-900",
-                            isSoldOut && "text-muted-foreground line-through"
+                            hasDiscount ? "text-red-600" : "text-zinc-900"
                           )}
                         >
                           ${currentPrice}
                         </span>
 
-                        {hasDiscount && !isSoldOut && (
+                        {hasDiscount && (
                           <span className="text-xs text-muted-foreground line-through decoration-zinc-300">
                             ${product.price}
                           </span>
