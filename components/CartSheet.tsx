@@ -17,7 +17,7 @@ export const CartSheet = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleCheckout = () => {
-    const phoneNumber = "593986355332";
+    const phoneNumber = "593986355332"; // Tu número
     let message = "*Hola AVNYC, quiero realizar el siguiente pedido:*\n\n";
 
     cart.forEach((item, index) => {
@@ -28,22 +28,23 @@ export const CartSheet = () => {
       message += `   ▪️ Color: ${item.color}\n`;
       message += `   ▪️ Precio: $${item.price.toFixed(2)}\n`;
 
-      // --- CORRECCIÓN DE URL DE IMAGEN ---
+      // --- CORRECCIÓN DEFINITIVA DE URL ---
       if (item.image) {
-        const cleanImage = item.image.trim();
+        const imgLink = item.image.trim();
 
-        // Verificamos si la imagen YA es un link completo (viene de Supabase)
-        const isAbsoluteUrl = cleanImage.startsWith("http");
+        // 1. Verificamos si es un link externo (Supabase, Cloudinary, etc.)
+        const isExternalLink =
+          imgLink.startsWith("http") || imgLink.startsWith("https");
 
-        // Si ya es absoluta, usamos la imagen tal cual. Si no, le agregamos el dominio.
-        const imageUrl = isAbsoluteUrl
-          ? cleanImage
+        // 2. Si es externo, usamos el link TAL CUAL.
+        //    Si es interno (local), le pegamos el dominio de la tienda.
+        const finalUrl = isExternalLink
+          ? imgLink
           : `${window.location.origin}${
-              cleanImage.startsWith("/") ? "" : "/"
-            }${cleanImage}`;
+              imgLink.startsWith("/") ? "" : "/"
+            }${imgLink}`;
 
-        // El \n al inicio y final asegura que WhatsApp lo ponga azul
-        message += `📷 Ver Foto:\n${imageUrl}\n`;
+        message += `📷 Ver Foto:\n${finalUrl}\n`;
       }
     });
 
