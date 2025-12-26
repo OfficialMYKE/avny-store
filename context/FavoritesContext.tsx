@@ -9,14 +9,19 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-// Definimos qué guardamos de cada favorito
 type FavoriteItem = {
   id: string;
   title: string;
   image: string;
   price: number;
   category: string;
-  slug?: string; // Opcional, por si usas urls amigables
+  color: string; // Guardamos color referencial
+  size: string; // Guardamos talla referencial
+};
+
+type UserContact = {
+  email?: string;
+  whatsapp?: string;
 };
 
 interface FavoritesContextType {
@@ -24,6 +29,8 @@ interface FavoritesContextType {
   toggleFavorite: (item: FavoriteItem) => void;
   isFavorite: (id: string) => boolean;
   favoritesCount: number;
+  userContact: UserContact | null;
+  saveUserContact: (data: UserContact) => void;
 }
 
 const FavoritesContext = createContext<FavoritesContextType | undefined>(
@@ -32,23 +39,37 @@ const FavoritesContext = createContext<FavoritesContextType | undefined>(
 
 export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [userContact, setUserContact] = useState<UserContact | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 1. Cargar favoritos de LocalStorage al iniciar
+  // 1. Cargar datos de LocalStorage
   useEffect(() => {
-    const stored = localStorage.getItem("avnyc-favorites");
-    if (stored) {
-      setFavorites(JSON.parse(stored));
-    }
+    const storedFavs = localStorage.getItem("avnyc-favorites");
+    const storedContact = localStorage.getItem("avnyc-contact");
+
+    if (storedFavs) setFavorites(JSON.parse(storedFavs));
+    if (storedContact) setUserContact(JSON.parse(storedContact));
+
     setIsInitialized(true);
   }, []);
 
-  // 2. Guardar en LocalStorage cada vez que cambien
+  // 2. Guardar cambios en LocalStorage
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem("avnyc-favorites", JSON.stringify(favorites));
     }
   }, [favorites, isInitialized]);
+
+  useEffect(() => {
+    if (isInitialized && userContact) {
+      localStorage.setItem("avnyc-contact", JSON.stringify(userContact));
+    }
+  }, [userContact, isInitialized]);
+
+  const saveUserContact = (data: UserContact) => {
+    setUserContact(data);
+    // Aquí podrías enviar estos datos a Supabase en el futuro para marketing real
+  };
 
   const isFavorite = (id: string) => {
     return favorites.some((item) => item.id === id);
@@ -56,15 +77,12 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
 
   const toggleFavorite = (item: FavoriteItem) => {
     if (isFavorite(item.id)) {
-      // Si ya existe, lo quitamos
       setFavorites((prev) => prev.filter((fav) => fav.id !== item.id));
-      toast.info("Eliminado de favoritos", { duration: 2000 });
+      toast.info("Eliminado de favoritos");
     } else {
-      // Si no existe, lo agregamos
       setFavorites((prev) => [...prev, item]);
-      toast.success("¡Agregado a favoritos!", {
-        description: "Guardado en tu lista de deseos.",
-        duration: 2000,
+      toast.success("¡Guardado en favoritos!", {
+        description: "Te avisaremos si baja de precio.",
       });
     }
   };
@@ -76,6 +94,8 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
         toggleFavorite,
         isFavorite,
         favoritesCount: favorites.length,
+        userContact,
+        saveUserContact,
       }}
     >
       {children}

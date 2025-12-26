@@ -5,17 +5,29 @@ import {
   DialogContent,
   DialogTrigger,
   DialogTitle,
+  DialogHeader,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Ruler, ArrowRight, ShoppingCart, Heart, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Ruler,
+  ArrowRight,
+  ShoppingCart,
+  Heart,
+  Check,
+  Mail,
+  Phone,
+} from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { SizeGuide } from "./SizeGuide";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
-// 1. IMPORTAMOS EL HOOK DE FAVORITOS
 import { useFavorites } from "@/context/FavoritesContext";
 
+// --- DEFINICIÓN DE INTERFACES (Esto es lo que faltaba) ---
 interface Product {
   id: string;
   title: string;
@@ -45,20 +57,24 @@ export const ProductModal = ({
   children,
 }: ProductModalProps) => {
   const { addToCart } = useCart();
-  // 2. USAMOS EL CONTEXTO REAL DE FAVORITOS
-  const { toggleFavorite, isFavorite } = useFavorites();
+  const { toggleFavorite, isFavorite, userContact, saveUserContact } =
+    useFavorites();
 
   const [open, setOpen] = useState(false);
-  const [viewProduct, setViewProduct] = useState<Product>(product);
 
+  // ESTADO PARA EL DIALOGO DE CAPTURA DE DATOS
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [tempContact, setTempContact] = useState({ email: "", whatsapp: "" });
+
+  // Estado local del producto
+  const [viewProduct, setViewProduct] = useState<Product>(product);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [activeImage, setActiveImage] = useState("");
-
   const [isAdded, setIsAdded] = useState(false);
 
-  // Verificamos si ESTE producto específico es favorito
+  // Verificamos si es favorito
   const isProductFavorite = isFavorite(viewProduct.id);
 
   useEffect(() => {
@@ -66,6 +82,7 @@ export const ProductModal = ({
       loadProductData(product);
       setShowSizeGuide(false);
       setIsAdded(false);
+      setShowContactForm(false);
     }
   }, [open, product]);
 
@@ -142,6 +159,45 @@ export const ProductModal = ({
     )
     .slice(0, 3);
 
+  // --- LÓGICA DE FAVORITOS MEJORADA ---
+  const handleFavoriteClick = () => {
+    if (isProductFavorite) {
+      handleToggleAction();
+      return;
+    }
+    if (userContact) {
+      handleToggleAction();
+    } else {
+      setShowContactForm(true);
+    }
+  };
+
+  const handleSubmitContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempContact.email && !tempContact.whatsapp) {
+      toast.error("Por favor ingresa al menos un método de contacto");
+      return;
+    }
+    saveUserContact(tempContact);
+    setShowContactForm(false);
+    handleToggleAction();
+    toast.success("¡Datos guardados!", {
+      description: "Te avisaremos de ofertas.",
+    });
+  };
+
+  const handleToggleAction = () => {
+    toggleFavorite({
+      id: viewProduct.id,
+      title: viewProduct.title,
+      image: viewProduct.image_url,
+      price: currentPrice || 0,
+      category: viewProduct.category,
+      color: selectedColor || "Único",
+      size: selectedSize || "Única",
+    });
+  };
+
   const handleAddToCart = () => {
     const finalSize = selectedSize || "Única";
     const finalColor = selectedColor || "Único";
@@ -168,21 +224,11 @@ export const ProductModal = ({
     }, 2000);
   };
 
-  // 3. FUNCIÓN PARA MANEJAR FAVORITOS
-  const handleToggleFavorite = () => {
-    toggleFavorite({
-      id: viewProduct.id,
-      title: viewProduct.title,
-      image: viewProduct.image_url,
-      price: currentPrice || 0,
-      category: viewProduct.category,
-    });
-  };
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
+      {/* CONTENIDO PRINCIPAL */}
       <DialogContent className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] max-w-4xl w-full p-0 bg-white gap-0 rounded-none sm:rounded-lg border-none shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogTitle className="hidden">{viewProduct.title}</DialogTitle>
 
@@ -312,12 +358,11 @@ export const ProductModal = ({
             </div>
 
             <div className="flex gap-3 mt-4">
-              {/* BOTÓN DE FAVORITOS CONECTADO */}
               <Button
                 variant="outline"
                 size="icon"
                 className="h-12 w-12 border-zinc-300 hover:border-red-500 hover:bg-red-50 flex-shrink-0"
-                onClick={handleToggleFavorite}
+                onClick={handleFavoriteClick}
                 title={
                   isProductFavorite
                     ? "Quitar de Favoritos"
@@ -327,7 +372,6 @@ export const ProductModal = ({
                 <Heart
                   className={cn(
                     "w-6 h-6 transition-all",
-                    // Si es favorito, lo pintamos de rojo sólido
                     isProductFavorite
                       ? "fill-red-500 text-red-500 scale-110"
                       : "text-zinc-600"
@@ -389,6 +433,67 @@ export const ProductModal = ({
           </div>
         </div>
       </DialogContent>
+
+      {/* --- SUB-DIALOGO PARA PEDIR DATOS --- */}
+      <Dialog open={showContactForm} onOpenChange={setShowContactForm}>
+        <DialogContent className="sm:max-w-[425px] z-[9999]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black italic">
+              ¡No te pierdas las ofertas!
+            </DialogTitle>
+            <DialogDescription>
+              Para guardar en favoritos y avisarte si este producto baja de
+              precio, necesitamos saber dónde escribirte.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitContact} className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email" className="font-bold">
+                Correo Electrónico
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  placeholder="tu@email.com"
+                  className="pl-9"
+                  value={tempContact.email}
+                  onChange={(e) =>
+                    setTempContact({ ...tempContact, email: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold text-center justify-center my-1">
+              - O -
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="whatsapp" className="font-bold">
+                WhatsApp
+              </Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="whatsapp"
+                  placeholder="099..."
+                  className="pl-9"
+                  type="tel"
+                  value={tempContact.whatsapp}
+                  onChange={(e) =>
+                    setTempContact({ ...tempContact, whatsapp: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <Button
+              type="submit"
+              className="w-full font-bold bg-black text-white mt-2"
+            >
+              Guardar y Agregar a Favoritos
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };

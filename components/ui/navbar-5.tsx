@@ -33,9 +33,9 @@ import {
 } from "@/components/ui/sheet";
 import Link from "next/link";
 
-// 1. IMPORTAR EL CARRITO
-// ".." sube un nivel para salir de la carpeta "ui" y buscar en "components"
+// 1. IMPORTAR EL CARRITO Y FAVORITOS
 import { CartSheet } from "../CartSheet";
+import { FavoritesSheet } from "@/components/FavoritesSheet"; // <--- NUEVO IMPORT
 
 interface NavbarProps {
   onCategoryChange: (category: string) => void;
@@ -183,7 +183,7 @@ export const Navbar5 = ({
                 </Link>
               </NavigationMenuItem>
 
-              {/* Botón: Descuentos (Escritorio mantiene icono) */}
+              {/* Botón: Descuentos */}
               <NavigationMenuItem>
                 <button
                   onClick={() => onCategoryChange("Ofertas")}
@@ -208,10 +208,13 @@ export const Navbar5 = ({
               />
             </div>
 
-            {/* 2. AQUÍ AGREGAMOS EL CARRITO */}
+            {/* 2. AGREGAMOS EL BOTÓN DE FAVORITOS AQUÍ */}
+            <FavoritesSheet />
+
+            {/* 3. LUEGO EL CARRITO */}
             <CartSheet />
 
-            {/* Botón antiguo de WhatsApp (Opcional: Si quieres mantenerlo o quitarlo ya que el carrito hace lo mismo) */}
+            {/* Botón antiguo de WhatsApp (Opcional, ya está en el carrito, puedes quitarlo si quieres limpiar) */}
             <Button
               variant="outline"
               size="icon"
@@ -262,7 +265,7 @@ export const Navbar5 = ({
                   />
                 </div>
 
-                {/* Enlace Móvil: VER OFERTAS (Sin icono, mismo estilo que categorías) */}
+                {/* Enlace Móvil: VER OFERTAS */}
                 <button
                   onClick={() => handleCategoryClick("Ofertas")}
                   className="w-full py-4 text-base font-bold border-b text-left hover:text-muted-foreground transition-colors"
