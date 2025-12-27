@@ -18,6 +18,8 @@ import {
   Heart,
   Check,
   Mail,
+  Truck,
+  ShieldCheck,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -61,11 +63,9 @@ export const ProductModal = ({
 
   const [open, setOpen] = useState(false);
 
-  // ESTADO PARA EL DIALOGO DE CAPTURA DE DATOS
+  // Estados
   const [showContactForm, setShowContactForm] = useState(false);
   const [emailInput, setEmailInput] = useState("");
-
-  // Estado local del producto
   const [viewProduct, setViewProduct] = useState<Product>(product);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
@@ -73,7 +73,6 @@ export const ProductModal = ({
   const [activeImage, setActiveImage] = useState("");
   const [isAdded, setIsAdded] = useState(false);
 
-  // Verificamos si es favorito
   const isProductFavorite = isFavorite(viewProduct.id);
 
   useEffect(() => {
@@ -82,7 +81,6 @@ export const ProductModal = ({
       setShowSizeGuide(false);
       setIsAdded(false);
       setShowContactForm(false);
-      // Pre-llenar si ya tenemos el contacto
       if (userContact?.email) setEmailInput(userContact.email);
     }
   }, [open, product, userContact]);
@@ -92,11 +90,10 @@ export const ProductModal = ({
     setActiveImage(p.image_url);
 
     let defaultColor = "Único";
-    if (Array.isArray(p.colors) && p.colors.length > 0) {
+    if (Array.isArray(p.colors) && p.colors.length > 0)
       defaultColor = p.colors[0];
-    } else if (typeof p.colors === "string" && p.colors.trim() !== "") {
+    else if (typeof p.colors === "string" && p.colors.trim() !== "")
       defaultColor = p.colors;
-    }
     setSelectedColor(defaultColor);
 
     let defaultSize = "Única";
@@ -107,11 +104,8 @@ export const ProductModal = ({
         .map((s) => ({ size: s.trim(), available: true }));
     }
     const firstAvailable = sizes.find((s) => s.available);
-    if (firstAvailable) {
-      defaultSize = firstAvailable.size;
-    } else if (sizes.length > 0) {
-      defaultSize = sizes[0].size;
-    }
+    if (firstAvailable) defaultSize = firstAvailable.size;
+    else if (sizes.length > 0) defaultSize = sizes[0].size;
     setSelectedSize(defaultSize);
   };
 
@@ -119,67 +113,29 @@ export const ProductModal = ({
     viewProduct.sale_price && viewProduct.sale_price < viewProduct.price;
   const currentPrice = hasDiscount ? viewProduct.sale_price : viewProduct.price;
 
-  // --- LÓGICA DE CATEGORÍA DE TALLAS (ACTUALIZADA Y CORREGIDA) ---
+  // Lógica de Categoría de Tallas
   const sizeCategory: SizeCategory = useMemo(() => {
     const cat = viewProduct.category.toLowerCase();
     const title = viewProduct.title.toLowerCase();
-
-    // 1. NIÑOS (Prioridad alta)
-    if (cat.includes("niño") || cat.includes("kids")) {
-      return "kids";
-    }
-
-    // 2. ACCESORIOS (Ocultar guía)
+    if (cat.includes("niño") || cat.includes("kids")) return "kids";
     if (
       cat.includes("accesorio") ||
-      cat.includes("accessory") ||
       cat.includes("gorra") ||
-      cat.includes("bolso") ||
-      cat.includes("calcetines") ||
-      cat.includes("mochila") ||
-      cat.includes("sticker")
-    ) {
+      cat.includes("bolso")
+    )
       return "accessories";
-    }
-
-    // 3. BOTTOMS (Pantalones, Shorts, Jeans, Faldas)
     if (
       cat.includes("pantalon") ||
-      cat.includes("pantalón") ||
-      cat.includes("pants") ||
-      cat.includes("jeans") ||
-      cat.includes("short") ||
-      cat.includes("jogger") ||
-      cat.includes("falda") ||
-      cat.includes("legging") ||
-      // Revisión en título
       title.includes("pant") ||
-      title.includes("jean") ||
       title.includes("short")
-    ) {
+    )
       return "bottoms";
-    }
-
-    // 4. TOPS (Camisetas, Hoodies, Chaquetas)
     if (
       cat.includes("ropa") ||
-      cat.includes("clothing") ||
-      cat.includes("camiseta") ||
-      cat.includes("t-shirt") ||
-      cat.includes("shirt") ||
-      cat.includes("hoodie") ||
-      cat.includes("sudadera") ||
-      cat.includes("jacket") ||
-      cat.includes("chaqueta") ||
-      cat.includes("top") ||
-      // Revisión en título
       title.includes("camiseta") ||
       title.includes("hoodie")
-    ) {
+    )
       return "tops";
-    }
-
-    // 5. DEFAULT -> ZAPATOS
     return "shoes";
   }, [viewProduct.category, viewProduct.title]);
 
@@ -194,17 +150,16 @@ export const ProductModal = ({
   const sizesList = useMemo(() => {
     let list = viewProduct.sizes_data || [];
     if (list.length === 0) {
-      if (viewProduct.size) {
+      if (viewProduct.size)
         list = viewProduct.size
           .split(",")
           .map((s) => ({ size: s.trim(), available: true }));
-      } else {
-        list = [{ size: "Única", available: true }];
-      }
+      else list = [{ size: "Única", available: true }];
     }
     return list;
   }, [viewProduct.sizes_data, viewProduct.size]);
 
+  // Galería de imágenes
   const currentColorGallery =
     viewProduct.gallery?.find((g) => g.color === selectedColor)?.images || [];
   const extraImages = viewProduct.extra_images || [];
@@ -224,14 +179,9 @@ export const ProductModal = ({
     )
     .slice(0, 3);
 
-  // --- LÓGICA DE FAVORITOS (SOLO EMAIL) ---
+  // Acciones
   const handleFavoriteClick = () => {
-    if (isProductFavorite) {
-      handleToggleAction();
-      return;
-    }
-    // Si ya tenemos email guardado, procedemos directo
-    if (userContact?.email) {
+    if (isProductFavorite || userContact?.email) {
       handleToggleAction();
     } else {
       setShowContactForm(true);
@@ -244,16 +194,10 @@ export const ProductModal = ({
       toast.error("Por favor ingresa un correo válido");
       return;
     }
-
     const contactData = { email: emailInput, whatsapp: "" };
-
-    // 1. Guardar en memoria
     saveUserContact(contactData);
     setShowContactForm(false);
-
-    // 2. Ejecutar acción
     handleToggleAction(contactData);
-
     toast.success("¡Correo guardado!", {
       description: "Te avisaremos automáticamente de las ofertas.",
     });
@@ -280,7 +224,6 @@ export const ProductModal = ({
   const handleAddToCart = () => {
     const finalSize = selectedSize || "Única";
     const finalColor = selectedColor || "Único";
-
     addToCart({
       id: `${viewProduct.id}-${finalSize}-${finalColor}`,
       productId: viewProduct.id,
@@ -291,248 +234,280 @@ export const ProductModal = ({
       color: finalColor,
       quantity: 1,
     });
-
-    toast.success("¡Producto agregado al carrito!", {
-      description: `${viewProduct.title} - ${finalSize} / ${finalColor}`,
-      duration: 3000,
+    toast.success("¡Agregado al carrito!", {
+      description: `${viewProduct.title} - ${finalSize}`,
     });
-
     setIsAdded(true);
-    setTimeout(() => {
-      setIsAdded(false);
-    }, 2000);
+    setTimeout(() => setIsAdded(false), 2000);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
-      {/* CONTENIDO PRINCIPAL */}
-      <DialogContent className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] max-w-4xl w-full p-0 bg-white gap-0 rounded-none sm:rounded-lg border-none shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-5xl translate-x-[-50%] translate-y-[-50%] gap-0 border bg-white p-0 shadow-2xl duration-200 sm:rounded-xl overflow-hidden h-[95vh] sm:h-[85vh] md:grid-cols-2">
         <DialogTitle className="hidden">{viewProduct.title}</DialogTitle>
-
-        {/* Pasamos la categoría calculada a la guía */}
         <SizeGuide
           isOpen={showSizeGuide}
           onClose={() => setShowSizeGuide(false)}
           category={sizeCategory}
         />
 
-        <div className="grid sm:grid-cols-2 overflow-y-auto h-full">
-          {/* FOTOS */}
-          <div className="bg-zinc-50 p-4 sm:p-0 flex flex-col gap-4">
-            <div className="aspect-square w-full bg-white flex items-center justify-center overflow-hidden border-b sm:border-r sm:border-b-0 p-8">
-              <img
-                src={activeImage}
-                alt={viewProduct.title}
-                className="object-contain w-full h-full mix-blend-multiply transition-opacity duration-300"
-              />
+        {/* --- COLUMNA IZQUIERDA: GALERÍA VISUAL --- */}
+        <div className="relative h-[40vh] md:h-full bg-[#f9f9f9] flex flex-col">
+          {/* HE QUITADO EL BOTÓN DE CERRAR MANUAL AQUÍ */}
+
+          {/* Imagen Principal */}
+          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
+            <img
+              src={activeImage}
+              alt={viewProduct.title}
+              className="h-full w-full object-contain mix-blend-multiply transition-opacity duration-300 animate-in fade-in zoom-in-95"
+            />
+          </div>
+
+          {/* Miniaturas (Scroll Horizontal) */}
+          {uniqueImages.length > 1 && (
+            <div className="flex gap-2 px-6 pb-6 overflow-x-auto scrollbar-hide justify-center">
+              {uniqueImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImage(img)}
+                  className={cn(
+                    "relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border bg-white transition-all hover:border-black",
+                    activeImage === img
+                      ? "border-black ring-1 ring-black"
+                      : "border-transparent opacity-70 hover:opacity-100"
+                  )}
+                >
+                  <img src={img} className="h-full w-full object-cover" />
+                </button>
+              ))}
             </div>
-            {uniqueImages.length > 1 && (
-              <div className="flex gap-2 px-4 overflow-x-auto pb-2 scrollbar-hide justify-center">
-                {uniqueImages.map((img, idx) => (
+          )}
+        </div>
+
+        {/* --- COLUMNA DERECHA: INFORMACIÓN Y ACCIONES --- */}
+        <div className="flex flex-col h-full overflow-y-auto bg-white p-6 sm:p-10 scrollbar-thin scrollbar-thumb-zinc-200">
+          {/* Header Producto */}
+          <div className="mb-8 border-b border-zinc-100 pb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
+                {viewProduct.category}
+              </span>
+              {/* HE QUITADO EL BOTÓN DE CERRAR MANUAL AQUÍ TAMBIÉN */}
+            </div>
+
+            <h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 leading-[0.9] mb-4">
+              {viewProduct.title}
+            </h2>
+
+            <div className="flex items-end gap-3">
+              <span className="text-3xl font-bold tracking-tight">
+                ${currentPrice}
+              </span>
+              {hasDiscount && (
+                <span className="mb-1 text-lg text-zinc-400 line-through decoration-zinc-300">
+                  ${viewProduct.price}
+                </span>
+              )}
+              {viewProduct.is_sold && (
+                <span className="mb-1 rounded bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                  Agotado
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Descripción */}
+          {viewProduct.description && (
+            <div className="mb-8">
+              <p className="text-sm leading-relaxed text-zinc-600">
+                {viewProduct.description}
+              </p>
+            </div>
+          )}
+
+          {/* Selectores */}
+          <div className="space-y-6 flex-1">
+            {/* Selector Color */}
+            <div className="space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-900">
+                Color:{" "}
+                <span className="text-zinc-500 font-normal ml-1">
+                  {selectedColor}
+                </span>
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {colorsArray.map((c) => {
+                  const isSoldOut = viewProduct.sold_out_colors?.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      disabled={isSoldOut}
+                      onClick={() => setSelectedColor(c)}
+                      className={cn(
+                        "px-4 py-2 text-xs font-medium border transition-all rounded-sm",
+                        selectedColor === c
+                          ? "bg-black text-white border-black"
+                          : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400",
+                        isSoldOut &&
+                          "opacity-40 cursor-not-allowed bg-zinc-50 line-through"
+                      )}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Selector Talla */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-900">
+                  Talla:{" "}
+                  <span className="text-zinc-500 font-normal ml-1">
+                    {selectedSize}
+                  </span>
+                </span>
+                {sizeCategory !== "accessories" && (
+                  <button
+                    onClick={() => setShowSizeGuide(true)}
+                    className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 hover:text-black underline decoration-zinc-300 hover:decoration-black underline-offset-4 transition-all"
+                  >
+                    <Ruler className="h-3 w-3" /> Guía de Tallas
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {sizesList.map((s, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setActiveImage(img)}
+                    disabled={!s.available}
+                    onClick={() => setSelectedSize(s.size)}
                     className={cn(
-                      "w-16 h-16 border-2 rounded overflow-hidden flex-shrink-0 transition-all bg-white",
-                      activeImage === img
-                        ? "border-black opacity-100"
-                        : "border-transparent opacity-60 hover:opacity-100"
+                      "min-w-[48px] h-12 px-2 flex items-center justify-center text-xs font-bold border transition-all rounded-sm",
+                      selectedSize === s.size
+                        ? "bg-black text-white border-black ring-2 ring-black ring-offset-2"
+                        : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-900",
+                      !s.available &&
+                        "opacity-40 cursor-not-allowed bg-zinc-50 border-zinc-100 text-zinc-300 diagonal-line"
                     )}
                   >
-                    <img src={img} className="w-full h-full object-cover" />
+                    {s.size}
                   </button>
                 ))}
               </div>
-            )}
+            </div>
           </div>
 
-          {/* INFO */}
-          <div className="p-6 sm:p-8 flex flex-col gap-6">
-            <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                {viewProduct.category}
-              </p>
-              <h2 className="text-2xl sm:text-3xl font-black italic tracking-tighter uppercase leading-none mb-2">
-                {viewProduct.title}
-              </h2>
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold">${currentPrice}</span>
-                {hasDiscount && (
-                  <span className="text-lg text-muted-foreground line-through decoration-red-500 decoration-2">
-                    ${viewProduct.price}
-                  </span>
-                )}
-              </div>
-            </div>
+          {/* Botones de Acción */}
+          <div className="mt-8 flex gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn(
+                "h-14 w-14 flex-shrink-0 rounded-sm border-zinc-200 hover:border-red-500 hover:bg-red-50 hover:text-red-500 transition-all",
+                isProductFavorite && "border-red-500 bg-red-50 text-red-500"
+              )}
+              onClick={handleFavoriteClick}
+            >
+              <Heart
+                className={cn("h-6 w-6", isProductFavorite && "fill-current")}
+              />
+            </Button>
 
-            {viewProduct.description && (
-              <div className="text-sm text-zinc-600 leading-relaxed border-l-2 border-black pl-4 py-1">
-                {viewProduct.description}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <span className="text-xs font-bold uppercase">
-                  Color: {selectedColor}
+            <Button
+              onClick={handleAddToCart}
+              disabled={isAdded || viewProduct.is_sold}
+              className={cn(
+                "h-14 flex-1 rounded-sm text-sm font-bold uppercase tracking-widest transition-all",
+                isAdded
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-black hover:bg-zinc-800"
+              )}
+            >
+              {viewProduct.is_sold ? (
+                "Agotado"
+              ) : isAdded ? (
+                <span className="flex items-center gap-2">
+                  <Check className="h-5 w-5" /> Agregado
                 </span>
-                <div className="flex flex-wrap gap-2">
-                  {colorsArray.map((c) => {
-                    const isSoldOut = viewProduct.sold_out_colors?.includes(c);
-                    return (
-                      <button
-                        key={c}
-                        disabled={isSoldOut}
-                        onClick={() => setSelectedColor(c)}
-                        className={cn(
-                          "px-3 py-1.5 text-xs font-bold border transition-all rounded-sm",
-                          selectedColor === c
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-black",
-                          isSoldOut &&
-                            "opacity-50 line-through cursor-not-allowed bg-zinc-100"
-                        )}
-                      >
-                        {c}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" /> Agregar al Carrito
+                </span>
+              )}
+            </Button>
+          </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase">
-                    Talla: {selectedSize}
-                  </span>
+          {/* Footer Informativo */}
+          <div className="mt-8 grid grid-cols-2 gap-4 border-t border-dashed border-zinc-200 pt-6">
+            <div className="flex items-center gap-3 text-zinc-500">
+              <Truck className="w-5 h-5 text-zinc-400" />
+              <span className="text-[10px] uppercase font-bold tracking-wide">
+                Envíos a todo Ecuador
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-zinc-500">
+              <ShieldCheck className="w-5 h-5 text-zinc-400" />
+              <span className="text-[10px] uppercase font-bold tracking-wide">
+                Compra Segura
+              </span>
+            </div>
+          </div>
 
-                  {/* BOTÓN GUÍA DE TALLAS: Se muestra solo si NO es accesorio */}
-                  {sizeCategory !== "accessories" && (
-                    <div
-                      onClick={() => setShowSizeGuide(true)}
-                      className="text-[10px] flex items-center gap-1 text-muted-foreground cursor-pointer hover:underline hover:text-black transition-colors"
-                    >
-                      <Ruler size={12} /> Guía de Tallas
+          {/* Productos Relacionados */}
+          {relatedProducts.length > 0 && (
+            <div className="mt-10 pt-8 border-t border-zinc-100">
+              <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                También te podría gustar
+              </h4>
+              <div className="grid grid-cols-3 gap-3">
+                {relatedProducts.map((rel) => (
+                  <div
+                    key={rel.id}
+                    className="group cursor-pointer"
+                    onClick={() => loadProductData(rel)}
+                  >
+                    <div className="aspect-square relative mb-2 overflow-hidden rounded-sm bg-zinc-50">
+                      <img
+                        src={rel.image_url}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 mix-blend-multiply"
+                      />
                     </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {sizesList.map((s, idx) => (
-                    <button
-                      key={idx}
-                      disabled={s.available === false}
-                      onClick={() => setSelectedSize(s.size)}
-                      className={cn(
-                        "min-w-[40px] h-10 px-2 flex items-center justify-center text-xs font-bold border transition-all rounded-sm",
-                        selectedSize === s.size
-                          ? "bg-black text-white border-black"
-                          : "bg-white text-zinc-600 border-zinc-200 hover:border-black",
-                        s.available === false &&
-                          "opacity-40 line-through cursor-not-allowed bg-zinc-50 border-transparent text-zinc-300"
-                      )}
-                    >
-                      {s.size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-4">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-12 w-12 border-zinc-300 hover:border-red-500 hover:bg-red-50 flex-shrink-0"
-                onClick={handleFavoriteClick}
-                title={
-                  isProductFavorite
-                    ? "Quitar de Favoritos"
-                    : "Agregar a Favoritos"
-                }
-              >
-                <Heart
-                  className={cn(
-                    "w-6 h-6 transition-all",
-                    isProductFavorite
-                      ? "fill-red-500 text-red-500 scale-110"
-                      : "text-zinc-600"
-                  )}
-                />
-              </Button>
-
-              <Button
-                onClick={handleAddToCart}
-                disabled={isAdded}
-                className={cn(
-                  "flex-1 h-12 text-base font-bold uppercase tracking-wide gap-2 text-white shadow-md transition-all duration-300",
-                  isAdded
-                    ? "bg-green-600 hover:bg-green-700 scale-105"
-                    : "bg-black hover:bg-zinc-800"
-                )}
-              >
-                {isAdded ? (
-                  <>
-                    <Check className="w-5 h-5 animate-in zoom-in" /> ¡Agregado!
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-5 h-5" /> Agregar al Carrito
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {relatedProducts.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-dashed">
-                <h4 className="text-xs font-bold uppercase mb-4 text-muted-foreground flex items-center gap-2">
-                  <ArrowRight size={14} /> También te podría gustar
-                </h4>
-                <div className="grid grid-cols-3 gap-3">
-                  {relatedProducts.map((rel) => (
-                    <div
-                      key={rel.id}
-                      className="group cursor-pointer"
-                      onClick={() => loadProductData(rel)}
-                    >
-                      <div className="aspect-square bg-zinc-100 rounded-sm overflow-hidden mb-2 relative border border-transparent hover:border-black transition-all">
-                        <img
-                          src={rel.image_url}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-                      <p className="text-[10px] font-bold line-clamp-1 leading-tight mt-1">
+                    <div className="space-y-0.5">
+                      <p className="line-clamp-1 text-[10px] font-bold uppercase leading-tight text-zinc-900">
                         {rel.title}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-[10px] text-zinc-500">
                         ${rel.sale_price || rel.price}
                       </p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </DialogContent>
 
-      {/* --- SUB-DIALOGO SOLO EMAIL --- */}
+      {/* --- MODAL EMAIL --- */}
       <Dialog open={showContactForm} onOpenChange={setShowContactForm}>
-        <DialogContent className="sm:max-w-[400px] z-[9999]">
+        <DialogContent className="sm:max-w-[400px] z-[60]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black italic">
               ¡Avisame cuando baje!
             </DialogTitle>
             <DialogDescription>
-              Déjanos tu correo y te enviaremos una alerta automática si este
-              producto entra en oferta.
+              Déjanos tu correo y te enviaremos una alerta automática.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitContact} className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="email" className="font-bold">
-                Tu Correo Electrónico
+                Tu Correo
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -546,10 +521,9 @@ export const ProductModal = ({
                 />
               </div>
             </div>
-
             <Button
               type="submit"
-              className="w-full font-bold bg-black text-white mt-2"
+              className="w-full bg-black font-bold text-white"
             >
               Guardar Alerta
             </Button>

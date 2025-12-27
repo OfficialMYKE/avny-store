@@ -2,10 +2,12 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { ProductModal } from "@/components/product-modal";
-// 1. IMPORTAMOS EL COMPONENTE LINK
 import Link from "next/link";
-import { SlidersHorizontal, X, Check } from "lucide-react";
+import { SlidersHorizontal, X, Check, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/context/CartContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { toast } from "sonner";
 
 // --- TIPOS DE DATOS ---
 interface Product {
@@ -15,6 +17,7 @@ interface Product {
   sale_price?: number;
   image_url: string;
   category: string;
+  gender?: string; // Agregamos género para el subtítulo
   colors: string[] | string | null;
   size: string | null;
   sizes_data?: { size: string; available: boolean }[];
@@ -22,12 +25,8 @@ interface Product {
   is_sold?: boolean;
 }
 
-// --- CONSTANTES DE FILTROS ---
-
-// 1. Tallas de Ropa
+// --- CONSTANTES ---
 const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "OS"];
-
-// 2. Tallas de Zapatos (Numéricas)
 const SHOE_SIZES = [
   "US 6",
   "US 6.5",
@@ -43,7 +42,6 @@ const SHOE_SIZES = [
   "US 12",
   "US 13",
 ];
-
 const ALL_COLORS = [
   "Negro",
   "Blanco",
@@ -63,7 +61,10 @@ export const CategoryShop = ({
   products: Product[];
   categoryName: string;
 }) => {
-  // ESTADOS DE LOS FILTROS
+  const { addToCart } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
+
+  // Estados Filtros
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
@@ -72,46 +73,36 @@ export const CategoryShop = ({
     "newest" | "price_asc" | "price_desc"
   >("newest");
 
-  // --- 1. RESETEAR FILTROS AL CAMBIAR DE CATEGORÍA ---
   useEffect(() => {
     setSelectedSizes([]);
     setSelectedColors([]);
     setPriceRange([0, 500]);
   }, [categoryName]);
 
-  // --- 2. LÓGICA ROBUSTA DE TALLAS ---
   const currentSizeList = useMemo(() => {
     const cat = categoryName.toLowerCase().trim();
-
     if (
       cat.includes("zapato") ||
       cat.includes("shoe") ||
       cat.includes("sneaker")
-    ) {
+    )
       return SHOE_SIZES;
-    }
-
     if (
       cat.includes("accesorio") ||
       cat.includes("gorra") ||
       cat.includes("bolso")
-    ) {
+    )
       return ["OS"];
-    }
-
     return CLOTHING_SIZES;
   }, [categoryName]);
 
-  // --- LÓGICA DE FILTRADO ---
   const filteredProducts = useMemo(() => {
     return products
       .filter((product) => {
-        // 1. Filtro por Precio
         const finalPrice = product.sale_price || product.price;
         if (finalPrice < priceRange[0] || finalPrice > priceRange[1])
           return false;
 
-        // 2. Filtro por Talla
         if (selectedSizes.length > 0) {
           let productSizes: string[] = [];
           if (product.sizes_data) {
@@ -121,31 +112,23 @@ export const CategoryShop = ({
           } else if (product.size) {
             productSizes = product.size.split(",").map((s) => s.trim());
           }
-          const hasSize = selectedSizes.some((size) =>
-            productSizes.includes(size)
-          );
-          if (!hasSize) return false;
+          if (!selectedSizes.some((size) => productSizes.includes(size)))
+            return false;
         }
 
-        // 3. Filtro por Color
         if (selectedColors.length > 0) {
           let productColors: string[] = [];
           if (Array.isArray(product.colors)) productColors = product.colors;
           else if (typeof product.colors === "string")
             productColors = [product.colors];
-
-          const hasColor = selectedColors.some((color) =>
-            productColors.includes(color)
-          );
-          if (!hasColor) return false;
+          if (!selectedColors.some((color) => productColors.includes(color)))
+            return false;
         }
-
         return true;
       })
       .sort((a, b) => {
         const priceA = a.sale_price || a.price;
         const priceB = b.sale_price || b.price;
-
         if (sortOrder === "price_asc") return priceA - priceB;
         if (sortOrder === "price_desc") return priceB - priceA;
         return 0;
@@ -157,14 +140,56 @@ export const CategoryShop = ({
     list: string[],
     setList: (l: string[]) => void
   ) => {
-    if (list.includes(item)) {
-      setList(list.filter((i) => i !== item));
-    } else {
-      setList([...list, item]);
-    }
+    if (list.includes(item)) setList(list.filter((i) => i !== item));
+    else setList([...list, item]);
   };
 
-  // --- COMPONENTE DE BARRA LATERAL ---
+  const handleQuickAdd = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    let defaultSize = "Única";
+    if (product.sizes_data?.length) {
+      const first = product.sizes_data.find((s) => s.available);
+      if (first) defaultSize = first.size;
+    } else if (product.size) {
+      defaultSize = product.size.split(",")[0].trim();
+    }
+
+    let defaultColor = "Único";
+    if (Array.isArray(product.colors) && product.colors.length)
+      defaultColor = product.colors[0];
+    else if (typeof product.colors === "string" && product.colors)
+      defaultColor = product.colors;
+
+    addToCart({
+      id: `${product.id}-${defaultSize}-${defaultColor}`,
+      productId: product.id,
+      title: product.title,
+      price: product.sale_price || product.price,
+      image: product.image_url,
+      size: defaultSize,
+      color: defaultColor,
+      quantity: 1,
+    });
+
+    toast.success("¡Agregado al carrito!", { description: `${product.title}` });
+  };
+
+  const handleToggleFavorite = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleFavorite({
+      id: product.id,
+      title: product.title,
+      price: product.sale_price || product.price,
+      image: product.image_url,
+      category: product.category,
+      color: "Único",
+      size: "Única",
+    });
+  };
+
   const FilterSidebar = () => (
     <div className="space-y-8">
       <div className="flex justify-between items-center lg:hidden mb-4">
@@ -174,7 +199,6 @@ export const CategoryShop = ({
         </button>
       </div>
 
-      {/* SECCIÓN TALLAS DINÁMICA */}
       <div className="space-y-3">
         <h4 className="font-bold text-xs uppercase tracking-widest border-b border-black pb-2">
           Talla {categoryName.toLowerCase().includes("zapato") ? "(US)" : ""}
@@ -199,7 +223,6 @@ export const CategoryShop = ({
         </div>
       </div>
 
-      {/* SECCIÓN COLORES */}
       <div className="space-y-3">
         <h4 className="font-bold text-xs uppercase tracking-widest border-b border-black pb-2">
           Color
@@ -238,7 +261,6 @@ export const CategoryShop = ({
         </div>
       </div>
 
-      {/* SECCIÓN PRECIO */}
       <div className="space-y-3">
         <h4 className="font-bold text-xs uppercase tracking-widest border-b border-black pb-2">
           Precio Máximo
@@ -260,7 +282,6 @@ export const CategoryShop = ({
         </div>
       </div>
 
-      {/* BOTÓN LIMPIAR */}
       {(selectedSizes.length > 0 ||
         selectedColors.length > 0 ||
         priceRange[1] < 500) && (
@@ -280,7 +301,6 @@ export const CategoryShop = ({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* HEADER DE LA CATEGORÍA */}
       <div className="py-8 border-b mb-8">
         <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-end gap-4">
           <div>
@@ -291,7 +311,6 @@ export const CategoryShop = ({
               {categoryName}
             </h1>
           </div>
-
           <div className="flex items-center gap-4 w-full md:w-auto">
             <button
               onClick={() => setShowMobileFilters(true)}
@@ -299,7 +318,6 @@ export const CategoryShop = ({
             >
               <SlidersHorizontal size={16} /> Filtros
             </button>
-
             <select
               value={sortOrder}
               onChange={(e: any) => setSortOrder(e.target.value)}
@@ -315,12 +333,10 @@ export const CategoryShop = ({
 
       <div className="container mx-auto px-4 pb-20">
         <div className="flex gap-10">
-          {/* SIDEBAR (DESKTOP) */}
           <div className="hidden lg:block w-64 flex-shrink-0 sticky top-24 h-fit">
             <FilterSidebar />
           </div>
 
-          {/* SIDEBAR (MÓVIL) */}
           {showMobileFilters && (
             <div className="fixed inset-0 z-50 lg:hidden flex">
               <div
@@ -333,15 +349,12 @@ export const CategoryShop = ({
             </div>
           )}
 
-          {/* GRILLA DE PRODUCTOS */}
           <div className="flex-1">
             {filteredProducts.length === 0 ? (
               <div className="text-center py-20 bg-zinc-50 border border-dashed rounded-lg">
-                <p className="text-zinc-500 mb-2">
-                  No se encontraron productos con estos filtros.
+                <p className="text-zinc-500 mb-4">
+                  No se encontraron productos.
                 </p>
-
-                {/* --- AQUI ESTA EL CAMBIO: USAMOS LINK PARA REDIRIGIR --- */}
                 <div className="flex flex-col gap-2 items-center">
                   <button
                     onClick={() => {
@@ -353,7 +366,6 @@ export const CategoryShop = ({
                   >
                     Limpiar filtros actuales
                   </button>
-
                   <Link
                     href="/"
                     className="px-6 py-2 bg-black text-white text-sm font-bold uppercase rounded-sm hover:bg-zinc-800 transition-colors"
@@ -363,7 +375,8 @@ export const CategoryShop = ({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-10">
+              // GRILLA RESPONSIVE
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-10">
                 {filteredProducts.map((product) => (
                   <ProductModal
                     key={product.id}
@@ -371,49 +384,100 @@ export const CategoryShop = ({
                     allProducts={filteredProducts}
                   >
                     <div className="group cursor-pointer">
-                      <div className="aspect-[4/5] bg-zinc-100 mb-4 relative overflow-hidden border border-transparent group-hover:border-black transition-all">
-                        {product.sale_price &&
-                          product.sale_price < product.price && (
-                            <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 uppercase z-10">
-                              Sale
-                            </span>
-                          )}
-                        {product.is_sold && (
-                          <span className="absolute top-2 left-2 bg-black text-white text-[10px] font-bold px-2 py-1 uppercase z-10">
-                            Sold Out
-                          </span>
-                        )}
+                      {/* --- DISEÑO DE TARJETA ESTILO NIKE --- */}
+
+                      {/* Contenedor Imagen (Gris Claro) */}
+                      <div className="relative aspect-square bg-[#f5f5f5] mb-4 overflow-hidden rounded-sm">
+                        {/* Botón Favorito (Top Right) */}
+                        <button
+                          onClick={(e) => handleToggleFavorite(e, product)}
+                          className="absolute top-3 right-3 z-20 p-2 rounded-full hover:bg-white/80 transition-colors"
+                        >
+                          <Heart
+                            size={20}
+                            className={cn(
+                              "transition-colors",
+                              isFavorite(product.id)
+                                ? "fill-black text-black"
+                                : "text-zinc-500 hover:text-black"
+                            )}
+                          />
+                        </button>
 
                         <img
                           src={product.image_url}
                           alt={product.title}
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          className={cn(
+                            "w-full h-full object-cover mix-blend-multiply transition-transform duration-700 group-hover:scale-105",
+                            product.is_sold && "grayscale opacity-50"
+                          )}
                         />
+
+                        {product.is_sold && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/40">
+                            <span className="bg-black text-white text-xs font-bold px-3 py-1 uppercase">
+                              Agotado
+                            </span>
+                          </div>
+                        )}
                       </div>
 
+                      {/* Información del Producto */}
                       <div className="space-y-1">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                          {product.category}
-                        </p>
-                        <h3 className="text-sm font-bold uppercase leading-tight line-clamp-2 group-hover:underline decoration-1 underline-offset-4">
+                        {/* Etiqueta Naranja (Lo nuevo / Oferta) */}
+                        {product.sale_price &&
+                        product.sale_price < product.price ? (
+                          <div className="text-[#9E3500] font-medium text-sm">
+                            Oferta
+                          </div>
+                        ) : (
+                          <div className="text-[#9E3500] font-medium text-sm">
+                            Lo nuevo
+                          </div>
+                        )}
+
+                        {/* Título */}
+                        <h3 className="text-base font-bold text-black leading-tight line-clamp-1">
                           {product.title}
                         </h3>
-                        <div className="flex items-center gap-2 text-sm">
+
+                        {/* Subtítulo (Categoría + Género) */}
+                        <p className="text-zinc-500 text-sm font-medium">
+                          {product.category}{" "}
+                          {product.gender ? `para ${product.gender}` : ""}
+                        </p>
+
+                        {/* Precio */}
+                        <div className="flex items-center gap-2 mt-1">
                           {product.sale_price &&
                           product.sale_price < product.price ? (
                             <>
-                              <span className="font-bold">
+                              <span className="text-base font-bold text-black">
                                 ${product.sale_price}
                               </span>
-                              <span className="text-zinc-400 line-through text-xs">
+                              <span className="text-sm text-zinc-400 line-through">
                                 ${product.price}
                               </span>
                             </>
                           ) : (
-                            <span className="font-bold">${product.price}</span>
+                            <span className="text-base font-bold text-black">
+                              ${product.price}
+                            </span>
                           )}
                         </div>
                       </div>
+
+                      {/* Botón Agregar al Carrito (Negro, Redondeado) */}
+                      {!product.is_sold && (
+                        <div className="mt-4">
+                          <button
+                            onClick={(e) => handleQuickAdd(e, product)}
+                            className="w-full bg-black text-white font-bold py-3 rounded-full hover:bg-zinc-800 transition-colors text-sm"
+                          >
+                            Agregar al Carrito
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </ProductModal>
                 ))}

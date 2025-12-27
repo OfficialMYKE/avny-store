@@ -122,7 +122,22 @@
   animation: accordion-up 0.2s ease-out;
 }
 
+/* app/globals.css */
 
+@layer utilities {
+  .animate-marquee-right {
+    animation: marquee-right 50s linear infinite; /* 50s es muy lento y suave */
+  }
+}
+
+@keyframes marquee-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0%);
+  }
+}
 
 @layer base {
   * {
