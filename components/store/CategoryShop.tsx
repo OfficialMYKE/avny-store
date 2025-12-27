@@ -1,14 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ProductModal } from "@/components/product-modal"; // Asegúrate de tener este componente (el que ya usabas)
-import {
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  ChevronUp,
-  Check,
-} from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { ProductModal } from "@/components/product-modal";
+// 1. IMPORTAMOS EL COMPONENTE LINK
+import Link from "next/link";
+import { SlidersHorizontal, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // --- TIPOS DE DATOS ---
@@ -24,11 +20,30 @@ interface Product {
   sizes_data?: { size: string; available: boolean }[];
   sold_out_colors?: string[];
   is_sold?: boolean;
-  // Agrega aquí otras propiedades si las tienes
 }
 
 // --- CONSTANTES DE FILTROS ---
-const ALL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "OS"];
+
+// 1. Tallas de Ropa
+const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "OS"];
+
+// 2. Tallas de Zapatos (Numéricas)
+const SHOE_SIZES = [
+  "US 6",
+  "US 6.5",
+  "US 7",
+  "US 7.5",
+  "US 8",
+  "US 8.5",
+  "US 9",
+  "US 9.5",
+  "US 10",
+  "US 10.5",
+  "US 11",
+  "US 12",
+  "US 13",
+];
+
 const ALL_COLORS = [
   "Negro",
   "Blanco",
@@ -52,12 +67,42 @@ export const CategoryShop = ({
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]); // Rango $0 - $500
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [sortOrder, setSortOrder] = useState<
     "newest" | "price_asc" | "price_desc"
   >("newest");
 
-  // --- LÓGICA DE FILTRADO (MAGIA) ---
+  // --- 1. RESETEAR FILTROS AL CAMBIAR DE CATEGORÍA ---
+  useEffect(() => {
+    setSelectedSizes([]);
+    setSelectedColors([]);
+    setPriceRange([0, 500]);
+  }, [categoryName]);
+
+  // --- 2. LÓGICA ROBUSTA DE TALLAS ---
+  const currentSizeList = useMemo(() => {
+    const cat = categoryName.toLowerCase().trim();
+
+    if (
+      cat.includes("zapato") ||
+      cat.includes("shoe") ||
+      cat.includes("sneaker")
+    ) {
+      return SHOE_SIZES;
+    }
+
+    if (
+      cat.includes("accesorio") ||
+      cat.includes("gorra") ||
+      cat.includes("bolso")
+    ) {
+      return ["OS"];
+    }
+
+    return CLOTHING_SIZES;
+  }, [categoryName]);
+
+  // --- LÓGICA DE FILTRADO ---
   const filteredProducts = useMemo(() => {
     return products
       .filter((product) => {
@@ -66,9 +111,8 @@ export const CategoryShop = ({
         if (finalPrice < priceRange[0] || finalPrice > priceRange[1])
           return false;
 
-        // 2. Filtro por Talla (Si hay tallas seleccionadas)
+        // 2. Filtro por Talla
         if (selectedSizes.length > 0) {
-          // Extraemos las tallas del producto
           let productSizes: string[] = [];
           if (product.sizes_data) {
             productSizes = product.sizes_data
@@ -77,14 +121,13 @@ export const CategoryShop = ({
           } else if (product.size) {
             productSizes = product.size.split(",").map((s) => s.trim());
           }
-          // Verificamos si AL MENOS UNA talla coincide
           const hasSize = selectedSizes.some((size) =>
             productSizes.includes(size)
           );
           if (!hasSize) return false;
         }
 
-        // 3. Filtro por Color (Si hay colores seleccionados)
+        // 3. Filtro por Color
         if (selectedColors.length > 0) {
           let productColors: string[] = [];
           if (Array.isArray(product.colors)) productColors = product.colors;
@@ -100,17 +143,15 @@ export const CategoryShop = ({
         return true;
       })
       .sort((a, b) => {
-        // Lógica de Ordenamiento
         const priceA = a.sale_price || a.price;
         const priceB = b.sale_price || b.price;
 
         if (sortOrder === "price_asc") return priceA - priceB;
         if (sortOrder === "price_desc") return priceB - priceA;
-        return 0; // "newest" asume el orden por defecto que viene de base de datos
+        return 0;
       });
   }, [products, selectedSizes, selectedColors, priceRange, sortOrder]);
 
-  // FUNCIONES HELPER
   const toggleFilter = (
     item: string,
     list: string[],
@@ -123,10 +164,9 @@ export const CategoryShop = ({
     }
   };
 
-  // --- COMPONENTE DE BARRA LATERAL (Sidebar) ---
+  // --- COMPONENTE DE BARRA LATERAL ---
   const FilterSidebar = () => (
     <div className="space-y-8">
-      {/* HEADER FILTROS */}
       <div className="flex justify-between items-center lg:hidden mb-4">
         <h3 className="font-bold text-lg">Filtros</h3>
         <button onClick={() => setShowMobileFilters(false)}>
@@ -134,20 +174,20 @@ export const CategoryShop = ({
         </button>
       </div>
 
-      {/* 1. SECCIÓN TALLAS */}
+      {/* SECCIÓN TALLAS DINÁMICA */}
       <div className="space-y-3">
         <h4 className="font-bold text-xs uppercase tracking-widest border-b border-black pb-2">
-          Talla
+          Talla {categoryName.toLowerCase().includes("zapato") ? "(US)" : ""}
         </h4>
         <div className="flex flex-wrap gap-2">
-          {ALL_SIZES.map((size) => (
+          {currentSizeList.map((size) => (
             <button
               key={size}
               onClick={() =>
                 toggleFilter(size, selectedSizes, setSelectedSizes)
               }
               className={cn(
-                "w-10 h-10 text-xs font-medium border flex items-center justify-center transition-all",
+                "min-w-[40px] h-10 px-2 text-xs font-medium border flex items-center justify-center transition-all",
                 selectedSizes.includes(size)
                   ? "bg-black text-white border-black"
                   : "bg-white text-zinc-600 border-zinc-200 hover:border-black"
@@ -159,7 +199,7 @@ export const CategoryShop = ({
         </div>
       </div>
 
-      {/* 2. SECCIÓN COLORES */}
+      {/* SECCIÓN COLORES */}
       <div className="space-y-3">
         <h4 className="font-bold text-xs uppercase tracking-widest border-b border-black pb-2">
           Color
@@ -185,7 +225,6 @@ export const CategoryShop = ({
               <span className="text-sm text-zinc-600 group-hover:text-black transition-colors">
                 {color}
               </span>
-              {/* Checkbox oculto real */}
               <input
                 type="checkbox"
                 className="hidden"
@@ -199,7 +238,7 @@ export const CategoryShop = ({
         </div>
       </div>
 
-      {/* 3. SECCIÓN PRECIO (Simple) */}
+      {/* SECCIÓN PRECIO */}
       <div className="space-y-3">
         <h4 className="font-bold text-xs uppercase tracking-widest border-b border-black pb-2">
           Precio Máximo
@@ -254,7 +293,6 @@ export const CategoryShop = ({
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
-            {/* Botón Filtros Móvil */}
             <button
               onClick={() => setShowMobileFilters(true)}
               className="lg:hidden flex items-center gap-2 border border-black px-4 py-2 text-sm font-bold uppercase hover:bg-zinc-50 flex-1 justify-center"
@@ -262,7 +300,6 @@ export const CategoryShop = ({
               <SlidersHorizontal size={16} /> Filtros
             </button>
 
-            {/* Ordenar Por */}
             <select
               value={sortOrder}
               onChange={(e: any) => setSortOrder(e.target.value)}
@@ -283,7 +320,7 @@ export const CategoryShop = ({
             <FilterSidebar />
           </div>
 
-          {/* SIDEBAR (MÓVIL - DRAWER) */}
+          {/* SIDEBAR (MÓVIL) */}
           {showMobileFilters && (
             <div className="fixed inset-0 z-50 lg:hidden flex">
               <div
@@ -303,16 +340,27 @@ export const CategoryShop = ({
                 <p className="text-zinc-500 mb-2">
                   No se encontraron productos con estos filtros.
                 </p>
-                <button
-                  onClick={() => {
-                    setSelectedSizes([]);
-                    setSelectedColors([]);
-                    setPriceRange([0, 500]);
-                  }}
-                  className="font-bold underline"
-                >
-                  Ver todos los productos
-                </button>
+
+                {/* --- AQUI ESTA EL CAMBIO: USAMOS LINK PARA REDIRIGIR --- */}
+                <div className="flex flex-col gap-2 items-center">
+                  <button
+                    onClick={() => {
+                      setSelectedSizes([]);
+                      setSelectedColors([]);
+                      setPriceRange([0, 500]);
+                    }}
+                    className="font-bold underline text-sm mb-4"
+                  >
+                    Limpiar filtros actuales
+                  </button>
+
+                  <Link
+                    href="/"
+                    className="px-6 py-2 bg-black text-white text-sm font-bold uppercase rounded-sm hover:bg-zinc-800 transition-colors"
+                  >
+                    Ir al Inicio / Ver Todo
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-10">
@@ -324,14 +372,12 @@ export const CategoryShop = ({
                   >
                     <div className="group cursor-pointer">
                       <div className="aspect-[4/5] bg-zinc-100 mb-4 relative overflow-hidden border border-transparent group-hover:border-black transition-all">
-                        {/* Badge Oferta */}
                         {product.sale_price &&
                           product.sale_price < product.price && (
                             <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 uppercase z-10">
                               Sale
                             </span>
                           )}
-                        {/* Badge Agotado */}
                         {product.is_sold && (
                           <span className="absolute top-2 left-2 bg-black text-white text-[10px] font-bold px-2 py-1 uppercase z-10">
                             Sold Out
