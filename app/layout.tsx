@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
-// 1. IMPORTAR EL PROVEEDOR DE FAVORITOS
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { Toaster } from "@/components/ui/sonner";
-// 2. IMPORTAR EL COMPONENTE DE WHATSAPP
 import { WhatsAppFloat } from "@/components/WhatsAppFloat";
+
+// --- CAMBIO IMPORTANTE ---
+// Importamos el Wrapper en lugar del Navbar directo
+// Asegúrate de que la ruta coincida con donde creaste el archivo NavbarWrapper.tsx
+import { NavbarWrapper } from "@/components/NavbarWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,9 +27,11 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <CartProvider>
-          {/* ENVOLVER AQUÍ (Dentro del CartProvider) */}
           <FavoritesProvider>
-            {children}
+            {/* Usamos el Wrapper: Él decidirá si mostrar el Navbar o no */}
+            <NavbarWrapper />
+
+            <main>{children}</main>
 
             {/* Notificaciones tipo Toast */}
             <Toaster position="top-center" richColors />

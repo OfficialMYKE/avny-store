@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { SizeGuide } from "./SizeGuide";
+import { SizeGuide, SizeCategory } from "./SizeGuide";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -119,6 +119,70 @@ export const ProductModal = ({
     viewProduct.sale_price && viewProduct.sale_price < viewProduct.price;
   const currentPrice = hasDiscount ? viewProduct.sale_price : viewProduct.price;
 
+  // --- LÓGICA DE CATEGORÍA DE TALLAS (ACTUALIZADA Y CORREGIDA) ---
+  const sizeCategory: SizeCategory = useMemo(() => {
+    const cat = viewProduct.category.toLowerCase();
+    const title = viewProduct.title.toLowerCase();
+
+    // 1. NIÑOS (Prioridad alta)
+    if (cat.includes("niño") || cat.includes("kids")) {
+      return "kids";
+    }
+
+    // 2. ACCESORIOS (Ocultar guía)
+    if (
+      cat.includes("accesorio") ||
+      cat.includes("accessory") ||
+      cat.includes("gorra") ||
+      cat.includes("bolso") ||
+      cat.includes("calcetines") ||
+      cat.includes("mochila") ||
+      cat.includes("sticker")
+    ) {
+      return "accessories";
+    }
+
+    // 3. BOTTOMS (Pantalones, Shorts, Jeans, Faldas)
+    if (
+      cat.includes("pantalon") ||
+      cat.includes("pantalón") ||
+      cat.includes("pants") ||
+      cat.includes("jeans") ||
+      cat.includes("short") ||
+      cat.includes("jogger") ||
+      cat.includes("falda") ||
+      cat.includes("legging") ||
+      // Revisión en título
+      title.includes("pant") ||
+      title.includes("jean") ||
+      title.includes("short")
+    ) {
+      return "bottoms";
+    }
+
+    // 4. TOPS (Camisetas, Hoodies, Chaquetas)
+    if (
+      cat.includes("ropa") ||
+      cat.includes("clothing") ||
+      cat.includes("camiseta") ||
+      cat.includes("t-shirt") ||
+      cat.includes("shirt") ||
+      cat.includes("hoodie") ||
+      cat.includes("sudadera") ||
+      cat.includes("jacket") ||
+      cat.includes("chaqueta") ||
+      cat.includes("top") ||
+      // Revisión en título
+      title.includes("camiseta") ||
+      title.includes("hoodie")
+    ) {
+      return "tops";
+    }
+
+    // 5. DEFAULT -> ZAPATOS
+    return "shoes";
+  }, [viewProduct.category, viewProduct.title]);
+
   const colorsArray = useMemo(() => {
     if (Array.isArray(viewProduct.colors) && viewProduct.colors.length > 0)
       return viewProduct.colors;
@@ -181,7 +245,7 @@ export const ProductModal = ({
       return;
     }
 
-    const contactData = { email: emailInput, whatsapp: "" }; // WhatsApp vacío
+    const contactData = { email: emailInput, whatsapp: "" };
 
     // 1. Guardar en memoria
     saveUserContact(contactData);
@@ -247,9 +311,11 @@ export const ProductModal = ({
       <DialogContent className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] max-w-4xl w-full p-0 bg-white gap-0 rounded-none sm:rounded-lg border-none shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogTitle className="hidden">{viewProduct.title}</DialogTitle>
 
+        {/* Pasamos la categoría calculada a la guía */}
         <SizeGuide
           isOpen={showSizeGuide}
           onClose={() => setShowSizeGuide(false)}
+          category={sizeCategory}
         />
 
         <div className="grid sm:grid-cols-2 overflow-y-auto h-full">
@@ -341,7 +407,9 @@ export const ProductModal = ({
                   <span className="text-xs font-bold uppercase">
                     Talla: {selectedSize}
                   </span>
-                  {viewProduct.category === "Zapatos" && (
+
+                  {/* BOTÓN GUÍA DE TALLAS: Se muestra solo si NO es accesorio */}
+                  {sizeCategory !== "accessories" && (
                     <div
                       onClick={() => setShowSizeGuide(true)}
                       className="text-[10px] flex items-center gap-1 text-muted-foreground cursor-pointer hover:underline hover:text-black transition-colors"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../../../lib/supabase"; // Ajusta según tu estructura
+import { createClient } from "../../../../lib/supabase"; // Ajusta la ruta según tu proyecto
 import { useRouter, useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,9 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { InterestedUsers } from "@/components/admin/InterestedUsers";
 
-// 1. IMPORTAMOS LA ACCIÓN DE SERVIDOR PARA ENVIAR CORREOS
+// IMPORTAMOS LA ACCIÓN DE SERVIDOR
 import { notifyPriceDrop } from "@/app/actions/notify-users";
 
-// CONSTANTES...
 const CATEGORIES = [
   "Camisetas",
   "Hoodies",
@@ -32,18 +31,37 @@ const CATEGORIES = [
   "Accesorios",
   "Gorras",
 ];
+
 const GENDERS = ["Hombre", "Mujer", "Niños", "Unisex"];
+
 const COLORS = [
   "Negro",
   "Blanco",
   "Gris",
-  "Rojo",
+  "Gris Oscuro",
   "Azul",
+  "Azul Marino",
+  "Celeste",
+  "Azul Denim Claro",
+  "Azul Denim Medio",
+  "Azul Denim Oscuro",
+  "Rojo",
+  "Vino",
   "Verde",
+  "Verde Oliva",
   "Beige",
+  "Camel",
+  "Café",
+  "Crema",
   "Amarillo",
+  "Naranja",
+  "Rosa",
+  "Morado",
+  "Lila",
   "Multicolor",
+  "Camuflaje",
 ];
+
 const ADULT_SIZES = [
   "XS",
   "S",
@@ -99,7 +117,7 @@ export default function EditProductPage() {
     stock: "",
     category: "",
     gender: "Unisex",
-    colors: "",
+    colors: "", // Color Principal
     image_url: "",
   });
 
@@ -108,10 +126,14 @@ export default function EditProductPage() {
   >([]);
   const [soldOutColors, setSoldOutColors] = useState<string[]>([]);
 
-  // IMÁGENES
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  // --- ESTADOS DE IMÁGENES ---
+  const [imageFile, setImageFile] = useState<File | null>(null); // Nueva Portada
+
+  // Fotos Extra (Generales/Color Principal)
   const [existingExtraImages, setExistingExtraImages] = useState<string[]>([]);
   const [newExtraFiles, setNewExtraFiles] = useState<File[]>([]);
+
+  // Galería (Por Color)
   const [existingGallery, setExistingGallery] = useState<
     { color: string; images: string[] }[]
   >([]);
@@ -145,8 +167,10 @@ export default function EditProductPage() {
         colors: Array.isArray(data.colors) ? data.colors[0] : data.colors || "",
         image_url: data.image_url || "",
       });
+
       if (data.sizes_data) setSizesData(data.sizes_data);
       else if (data.size) setSizesData([{ size: data.size, available: true }]);
+
       if (data.sold_out_colors) setSoldOutColors(data.sold_out_colors);
       if (data.gallery) setExistingGallery(data.gallery);
       if (data.extra_images) setExistingExtraImages(data.extra_images);
@@ -180,7 +204,9 @@ export default function EditProductPage() {
     );
   };
 
-  // MANEJO FOTOS
+  // --- MANEJO FOTOS ---
+
+  // 1. Fotos Extra (Generales)
   const handleNewExtraFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files)
       setNewExtraFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
@@ -190,6 +216,7 @@ export default function EditProductPage() {
   const removeExistingExtraImage = (url: string) =>
     setExistingExtraImages((prev) => prev.filter((img) => img !== url));
 
+  // 2. Galería (Por Color)
   const handleNewGalleryFiles = (
     color: string,
     e: React.ChangeEvent<HTMLInputElement>
@@ -207,17 +234,19 @@ export default function EditProductPage() {
     }));
   };
   const removeExistingImage = (color: string, imgUrl: string) => {
-    setExistingGallery((prev) =>
-      prev
-        .map((item) => {
-          if (item.color === color)
-            return {
-              ...item,
-              images: item.images.filter((img) => img !== imgUrl),
-            };
-          return item;
-        })
-        .filter((item) => item.images.length > 0)
+    setExistingGallery(
+      (prev) =>
+        prev
+          .map((item) => {
+            if (item.color === color) {
+              return {
+                ...item,
+                images: item.images.filter((img) => img !== imgUrl),
+              };
+            }
+            return item;
+          })
+          .filter((item) => item.images.length > 0) // Limpiar objetos vacíos si es necesario, aunque a veces es mejor dejar el color
     );
   };
 
@@ -281,18 +310,23 @@ export default function EditProductPage() {
         }
         newUploadedGallery.push({ color, images: urls });
       }
+
+      // Mezclar Existentes + Nuevas
       const finalGalleryMap = new Map<string, string[]>();
       existingGallery.forEach((item) =>
         finalGalleryMap.set(item.color, item.images)
       );
+
       newUploadedGallery.forEach((item) => {
         const current = finalGalleryMap.get(item.color) || [];
         finalGalleryMap.set(item.color, [...current, ...item.images]);
       });
+
       const finalGalleryData = Array.from(finalGalleryMap.entries()).map(
         ([color, images]) => ({ color, images })
       );
 
+      // Recolectar todos los colores activos
       const colorsSet = new Set<string>();
       if (formData.colors) colorsSet.add(formData.colors);
       finalGalleryData.forEach((g) => colorsSet.add(g.color));
@@ -322,32 +356,21 @@ export default function EditProductPage() {
 
       if (error) throw error;
 
-      // ============================================================
-      // 🚀 AUTOMATIZACIÓN DE CORREOS (RESEND)
-      // ============================================================
+      // 5. NOTIFICAR BAJADA DE PRECIO (Server Action)
       const oldPrice = parseFloat(formData.price);
       const newSalePrice = formData.sale_price
         ? parseFloat(formData.sale_price)
         : null;
 
-      // Si existe un precio de oferta Y es menor que el precio normal
       if (newSalePrice && newSalePrice < oldPrice) {
         console.log("📉 Detectada bajada de precio, enviando correos...");
-
-        // Llamamos a la Server Action (esto ocurre en el servidor)
         notifyPriceDrop(id, formData.title, newSalePrice, mainImageUrl)
           .then((res) => {
-            if (res.success) {
-              console.log(`✅ Correos enviados a ${res.count} interesados.`);
-            } else {
-              console.error("❌ Error enviando correos:", res.error);
-            }
+            if (res.success) console.log(`✅ Correos enviados: ${res.count}`);
+            else console.error("❌ Error enviando correos:", res.error);
           })
-          .catch((err) =>
-            console.error("❌ Fallo en la llamada al servidor:", err)
-          );
+          .catch((err) => console.error("❌ Fallo servidor:", err));
       }
-      // ============================================================
 
       router.push("/admin/dashboard");
       router.refresh();
@@ -380,7 +403,7 @@ export default function EditProductPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* SECCIÓN 1: INFO GENERAL */}
+          {/* INFO GENERAL */}
           <div className="grid gap-4 p-5 border rounded-lg bg-zinc-50/50">
             <h3 className="font-bold text-sm text-muted-foreground uppercase">
               Información General
@@ -396,7 +419,7 @@ export default function EditProductPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Descripción & Detalles</Label>
+              <Label>Descripción</Label>
               <textarea
                 name="description"
                 rows={4}
@@ -480,7 +503,7 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 2: TALLAS */}
+          {/* TALLAS */}
           <div className="p-5 border rounded-lg bg-zinc-50/50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-sm text-muted-foreground uppercase flex gap-2 items-center">
@@ -539,7 +562,7 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 3: IMÁGENES PORTADA */}
+          {/* FOTOS PRINCIPALES */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Portada</Label>
@@ -577,7 +600,7 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 4: FOTOS ADICIONALES */}
+          {/* FOTOS ADICIONALES (Color Principal) */}
           <div className="space-y-2 p-4 border rounded-lg bg-zinc-50">
             <div className="flex justify-between items-center mb-2">
               <Label className="flex items-center gap-2">
@@ -595,6 +618,7 @@ export default function EditProductPage() {
               </label>
             </div>
             <div className="flex gap-2 overflow-x-auto py-2">
+              {/* Fotos Existentes */}
               {existingExtraImages.map((img, idx) => (
                 <div
                   key={`old-extra-${idx}`}
@@ -613,6 +637,7 @@ export default function EditProductPage() {
                   </button>
                 </div>
               ))}
+              {/* Fotos Nuevas */}
               {newExtraFiles.map((file, idx) => (
                 <div
                   key={`new-extra-${idx}`}
@@ -634,7 +659,7 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 5: VARIANTES POR COLOR */}
+          {/* VARIANTES POR COLOR */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2">
               Variantes Específicas por Color
@@ -646,6 +671,7 @@ export default function EditProductPage() {
                 );
                 const newForColor = newGalleryFiles[color] || [];
                 const isSoldOut = soldOutColors.includes(color);
+
                 return (
                   <div
                     key={color}
@@ -683,11 +709,14 @@ export default function EditProductPage() {
                         </label>
                       </div>
                     </div>
+
+                    {/* Visualización de Galería */}
                     <div className="flex gap-2 overflow-x-auto">
+                      {/* Imágenes Existentes */}
                       {existingForColor?.images.map((img, idx) => (
                         <div
                           key={`old-${idx}`}
-                          className="relative w-12 h-12 flex-shrink-0 group"
+                          className="relative w-16 h-16 flex-shrink-0 group"
                         >
                           <img
                             src={img}
@@ -702,10 +731,11 @@ export default function EditProductPage() {
                           </button>
                         </div>
                       ))}
+                      {/* Imágenes Nuevas */}
                       {newForColor.map((file, idx) => (
                         <div
                           key={`new-${idx}`}
-                          className="relative w-12 h-12 flex-shrink-0 group"
+                          className="relative w-16 h-16 flex-shrink-0 group"
                         >
                           <img
                             src={URL.createObjectURL(file)}
@@ -735,7 +765,7 @@ export default function EditProductPage() {
             {saving ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}
           </Button>
 
-          {/* 6. LISTA DE INTERESADOS (Visor Manual) */}
+          {/* LISTA DE INTERESADOS */}
           <div className="pt-10 border-t">
             <InterestedUsers
               productId={id}

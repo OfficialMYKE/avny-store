@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "./lib/supabase";
-import { Navbar5 } from "@/components/ui/navbar-5";
+// YA NO IMPORTAMOS NAVBAR AQUÍ (Está en layout)
 import { ProductModal } from "@/components/product-modal";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,10 +12,6 @@ export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estado compartido
-  const [filter, setFilter] = useState("Todos");
-  const [searchTerm, setSearchTerm] = useState("");
-
   useEffect(() => {
     fetchProducts();
   }, []);
@@ -24,73 +20,17 @@ export default function Home() {
     const { data } = await supabase
       .from("products")
       .select("*")
-      .gt("stock", 0) // <--- AQUÍ ESTÁ EL CAMBIO: Solo trae productos con stock mayor a 0
-      .order("created_at", { ascending: false });
+      .gt("stock", 0) // Solo productos con stock
+      .order("created_at", { ascending: false }) // Los más nuevos primero
+      .limit(20); // Opcional: Traemos solo los 20 más recientes para la portada
 
     if (data) setProducts(data);
     setLoading(false);
   };
 
-  const filteredProducts = products.filter((p) => {
-    // 1. Filtro de Búsqueda
-    const matchesSearch = p.title
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-
-    // 2. Filtro de Categoría / Género / Ofertas
-    let matchesCategory = true;
-
-    if (filter === "Todos") {
-      matchesCategory = true;
-    } else if (filter === "Ofertas") {
-      // Solo mostramos ofertas. Ya no hace falta chequear stock aquí porque la BD ya lo filtró
-      matchesCategory = p.sale_price && p.sale_price < p.price;
-    } else if (["Hombre", "Mujer", "Niños"].includes(filter)) {
-      if (filter === "Niños") {
-        matchesCategory = p.gender === "Niños";
-      } else {
-        matchesCategory = p.gender === filter || p.gender === "Unisex";
-      }
-    } else {
-      matchesCategory = p.category === filter;
-    }
-
-    return matchesCategory && matchesSearch;
-  });
-
-  // Traductor visual de títulos
-  const getDisplayTitle = (categoryName: string) => {
-    switch (categoryName) {
-      case "Todos":
-        return "New Arrivals";
-      case "Ofertas":
-        return "Ofertas & Descuentos";
-      case "Hombre":
-        return "Colección Hombre";
-      case "Mujer":
-        return "Colección Mujer";
-      case "Niños":
-        return "Kids Vintage";
-      case "Zapatos":
-        return "Shoes & Sneakers";
-      case "Pantalones":
-        return "Pants & Denim";
-      case "Camisetas":
-        return "T-Shirts Graphic";
-      case "Chaquetas":
-        return "Jackets & Coats";
-      case "Accesorios":
-        return "Accessories";
-      case "Hoodies":
-        return "Hoodies & Sweatshirts";
-      default:
-        return categoryName;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-zinc-50/50 font-sans text-zinc-900">
-      <Navbar5 onCategoryChange={setFilter} onSearchChange={setSearchTerm} />
+      {/* AQUÍ YA NO HAY NAVBAR (Se carga desde el Layout) */}
 
       {/* HEADER / HERO SECTION */}
       <div className="bg-white border-b py-12 md:py-20 text-center px-4">
@@ -109,11 +49,14 @@ export default function Home() {
         <div className="flex items-end justify-between mb-6 border-b pb-4">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tighter italic uppercase">
-              {getDisplayTitle(filter)}
+              NEW ARRIVALS
             </h2>
+            <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">
+              Últimos lanzamientos
+            </p>
           </div>
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-            {filteredProducts.length} Items
+            {products.length} Items
           </span>
         </div>
 
@@ -123,11 +66,9 @@ export default function Home() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4 md:gap-x-8">
-            {filteredProducts.map((product) => {
-              // Como filtramos en DB, esto siempre será falso en esta vista,
-              // pero lo dejamos por si usas la tarjeta en otro lado.
+            {products.map((product) => {
+              // Validaciones visuales
               const isSoldOut = (product.stock || 0) <= 0;
-
               const hasDiscount =
                 product.sale_price && product.sale_price < product.price;
               const currentPrice = hasDiscount

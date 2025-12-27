@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-// CONSTANTES IGUALES QUE ANTES...
+// CONSTANTES ACTUALIZADAS
 const CATEGORIES = [
   "Camisetas",
   "Hoodies",
@@ -28,18 +28,38 @@ const CATEGORIES = [
   "Accesorios",
   "Gorras",
 ];
+
 const GENDERS = ["Hombre", "Mujer", "Niños", "Unisex"];
+
+// LISTA DE COLORES COMPLETA
 const COLORS = [
   "Negro",
   "Blanco",
   "Gris",
-  "Rojo",
+  "Gris Oscuro",
   "Azul",
+  "Azul Marino",
+  "Celeste",
+  "Azul Denim Claro",
+  "Azul Denim Medio",
+  "Azul Denim Oscuro",
+  "Rojo",
+  "Vino",
   "Verde",
+  "Verde Oliva",
   "Beige",
+  "Camel",
+  "Café",
+  "Crema",
   "Amarillo",
+  "Naranja",
+  "Rosa",
+  "Morado",
+  "Lila",
   "Multicolor",
+  "Camuflaje",
 ];
+
 const ADULT_SIZES = [
   "XS",
   "S",
@@ -90,18 +110,17 @@ export default function CreateProduct() {
     sale_price: "",
     stock: "1",
     category: "",
-    colors: "",
+    colors: "", // Color principal
     gender: "Unisex",
   });
 
   const [sizesData, setSizesData] = useState<
     { size: string; available: boolean }[]
   >([]);
-  const [soldOutColors, setSoldOutColors] = useState<string[]>([]);
 
   // IMÁGENES
   const [imageFile, setImageFile] = useState<File | null>(null); // Portada
-  const [extraFiles, setExtraFiles] = useState<File[]>([]); // NUEVO: Fotos de poses/ángulos
+  const [extraFiles, setExtraFiles] = useState<File[]>([]); // Fotos extra generales (del color principal)
   const [galleryFiles, setGalleryFiles] = useState<Record<string, File[]>>({}); // Variantes por color
 
   const handleChange = (
@@ -124,7 +143,9 @@ export default function CreateProduct() {
     });
   };
 
-  // Manejar fotos extra (poses)
+  // --- MANEJO DE FOTOS ---
+
+  // 1. Fotos Extra Generales
   const handleExtraFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setExtraFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
@@ -134,6 +155,7 @@ export default function CreateProduct() {
     setExtraFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // 2. Fotos por Color (Galería)
   const handleGalleryChange = (
     color: string,
     e: React.ChangeEvent<HTMLInputElement>
@@ -145,6 +167,13 @@ export default function CreateProduct() {
         [color]: [...(prev[color] || []), ...newFiles],
       }));
     }
+  };
+
+  const removeGalleryFile = (color: string, index: number) => {
+    setGalleryFiles((prev) => ({
+      ...prev,
+      [color]: prev[color].filter((_, i) => i !== index),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,7 +198,7 @@ export default function CreateProduct() {
         }
       }
 
-      // 2. NUEVO: Subir Fotos Extra (Poses)
+      // 2. Subir Fotos Extra (Poses Generales)
       const extraImagesUrls: string[] = [];
       for (const file of extraFiles) {
         const fileName = `extra_${Date.now()}_${Math.random()}.${file.name
@@ -186,7 +215,7 @@ export default function CreateProduct() {
         }
       }
 
-      // 3. Subir Galería por Color
+      // 3. Subir Galería por Color (Múltiples poses por color)
       const galleryData: { color: string; images: string[] }[] = [];
       for (const [color, files] of Object.entries(galleryFiles)) {
         if (files.length === 0) continue;
@@ -209,6 +238,7 @@ export default function CreateProduct() {
           galleryData.push({ color, images: uploadedUrls });
       }
 
+      // Unificar colores seleccionados (Principal + Variantes)
       const colorsSet = new Set<string>();
       if (formData.colors) colorsSet.add(formData.colors);
       galleryData.forEach((item) => colorsSet.add(item.color));
@@ -226,10 +256,9 @@ export default function CreateProduct() {
           gender: formData.gender,
           colors: Array.from(colorsSet),
           image_url: mainImageUrl,
-          extra_images: extraImagesUrls, // GUARDAMOS LAS NUEVAS FOTOS
+          extra_images: extraImagesUrls,
           gallery: galleryData,
           sizes_data: sizesData,
-          sold_out_colors: soldOutColors,
           size: sizesData.map((s) => s.size).join(", "),
           is_sold: false,
         },
@@ -260,7 +289,7 @@ export default function CreateProduct() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* SECCIÓN 1: INFO GENERAL (Sin cambios) */}
+          {/* SECCIÓN 1: INFO GENERAL */}
           <div className="grid gap-4 p-5 border rounded-lg bg-zinc-50/50">
             <h3 className="font-bold text-sm text-muted-foreground uppercase">
               Información General
@@ -272,7 +301,7 @@ export default function CreateProduct() {
                 required
                 onChange={handleChange}
                 className="bg-white"
-                placeholder="Ej: Camiseta Mickey Vintage"
+                placeholder="Ej: Jeans Slim Fit Azul Medio"
               />
             </div>
             <div className="space-y-1">
@@ -282,7 +311,7 @@ export default function CreateProduct() {
                 rows={4}
                 onChange={handleChange}
                 className="flex w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
-                placeholder="Describe el estado..."
+                placeholder="Describe el estado, material, medidas..."
               />
             </div>
             <div className="grid grid-cols-3 gap-4">
@@ -361,7 +390,7 @@ export default function CreateProduct() {
             </div>
           </div>
 
-          {/* SECCIÓN 2: TALLAS (Sin cambios, resumido) */}
+          {/* SECCIÓN 2: TALLAS */}
           <div className="p-5 border rounded-lg bg-zinc-50/50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-sm text-muted-foreground uppercase flex gap-2 items-center">
@@ -420,7 +449,7 @@ export default function CreateProduct() {
             </div>
           </div>
 
-          {/* SECCIÓN 3: FOTOS PRINCIPALES Y POSES (MODIFICADO) */}
+          {/* SECCIÓN 3: FOTOS PRINCIPALES */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Foto Portada</Label>
@@ -454,12 +483,12 @@ export default function CreateProduct() {
             </div>
           </div>
 
-          {/* NUEVA SECCIÓN: FOTOS ADICIONALES (POSES) */}
+          {/* SECCIÓN 4: OTRAS POSES (COLOR PRINCIPAL) */}
           <div className="space-y-2 p-4 border rounded-lg bg-zinc-50">
             <div className="flex justify-between items-center mb-2">
               <Label className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" /> Otras Poses / Ángulos
-                (Opcional)
+                <ImageIcon className="w-4 h-4" /> Otras Poses / Ángulos (Color
+                Principal)
               </Label>
               <label className="cursor-pointer text-xs bg-black text-white px-3 py-1.5 rounded-md flex items-center gap-1">
                 <Plus size={12} /> Agregar Fotos
@@ -496,10 +525,10 @@ export default function CreateProduct() {
             )}
           </div>
 
-          {/* SECCIÓN 4: VARIANTES POR COLOR (Sin cambios) */}
+          {/* SECCIÓN 5: VARIANTES ESPECÍFICAS (OTROS COLORES) */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2">
-              Variantes Específicas por Color (Opcional)
+              Variantes / Poses de Otros Colores (Opcional)
             </Label>
             <div className="grid gap-6 p-4 border rounded-lg bg-zinc-50">
               {COLORS.map((color) => (
@@ -520,17 +549,26 @@ export default function CreateProduct() {
                       />
                     </label>
                   </div>
-                  {galleryFiles[color] && (
-                    <div className="flex gap-2 py-2">
+
+                  {/* PREVISUALIZACIÓN DE FOTOS DEL COLOR */}
+                  {galleryFiles[color] && galleryFiles[color].length > 0 && (
+                    <div className="flex gap-2 py-2 overflow-x-auto">
                       {galleryFiles[color].map((file, idx) => (
                         <div
                           key={idx}
-                          className="w-10 h-10 bg-white border rounded overflow-hidden"
+                          className="relative w-16 h-16 flex-shrink-0 group"
                         >
                           <img
                             src={URL.createObjectURL(file)}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover rounded border border-zinc-300"
                           />
+                          <button
+                            type="button"
+                            onClick={() => removeGalleryFile(color, idx)}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                          >
+                            <X size={10} />
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -545,7 +583,11 @@ export default function CreateProduct() {
             className="w-full h-12 text-lg"
             disabled={loading}
           >
-            {loading ? <Loader2 className="animate-spin" /> : "Publicar"}
+            {loading ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              "Publicar Producto"
+            )}
           </Button>
         </form>
       </div>
