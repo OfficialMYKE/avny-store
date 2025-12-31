@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Ruler,
-  ArrowRight,
   ShoppingCart,
   Heart,
   Check,
@@ -61,9 +60,9 @@ export const ProductModal = ({
   const { toggleFavorite, isFavorite, userContact, saveUserContact } =
     useFavorites();
 
+  // ESTADO INICIAL: FALSE (Para que no se abra solo al cargar la página)
   const [open, setOpen] = useState(false);
 
-  // Estados
   const [showContactForm, setShowContactForm] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [viewProduct, setViewProduct] = useState<Product>(product);
@@ -96,7 +95,6 @@ export const ProductModal = ({
       defaultColor = p.colors;
     setSelectedColor(defaultColor);
 
-    let defaultSize = "Única";
     let sizes = p.sizes_data || [];
     if (sizes.length === 0 && p.size) {
       sizes = p.size
@@ -104,16 +102,15 @@ export const ProductModal = ({
         .map((s) => ({ size: s.trim(), available: true }));
     }
     const firstAvailable = sizes.find((s) => s.available);
-    if (firstAvailable) defaultSize = firstAvailable.size;
-    else if (sizes.length > 0) defaultSize = sizes[0].size;
-    setSelectedSize(defaultSize);
+    setSelectedSize(
+      firstAvailable ? firstAvailable.size : sizes[0]?.size || "Única"
+    );
   };
 
   const hasDiscount =
     viewProduct.sale_price && viewProduct.sale_price < viewProduct.price;
   const currentPrice = hasDiscount ? viewProduct.sale_price : viewProduct.price;
 
-  // Lógica de Categoría de Tallas
   const sizeCategory: SizeCategory = useMemo(() => {
     const cat = viewProduct.category.toLowerCase();
     const title = viewProduct.title.toLowerCase();
@@ -139,36 +136,17 @@ export const ProductModal = ({
     return "shoes";
   }, [viewProduct.category, viewProduct.title]);
 
-  const colorsArray = useMemo(() => {
-    if (Array.isArray(viewProduct.colors) && viewProduct.colors.length > 0)
-      return viewProduct.colors;
-    if (typeof viewProduct.colors === "string" && viewProduct.colors)
-      return [viewProduct.colors];
-    return ["Único"];
-  }, [viewProduct.colors]);
-
-  const sizesList = useMemo(() => {
-    let list = viewProduct.sizes_data || [];
-    if (list.length === 0) {
-      if (viewProduct.size)
-        list = viewProduct.size
-          .split(",")
-          .map((s) => ({ size: s.trim(), available: true }));
-      else list = [{ size: "Única", available: true }];
-    }
-    return list;
-  }, [viewProduct.sizes_data, viewProduct.size]);
-
-  // Galería de imágenes
-  const currentColorGallery =
-    viewProduct.gallery?.find((g) => g.color === selectedColor)?.images || [];
-  const extraImages = viewProduct.extra_images || [];
-  const imagesToShow = [
-    viewProduct.image_url,
-    ...extraImages,
-    ...currentColorGallery,
-  ].filter(Boolean);
-  const uniqueImages = Array.from(new Set(imagesToShow));
+  const imagesToShow = useMemo(() => {
+    const currentColorGallery =
+      viewProduct.gallery?.find((g) => g.color === selectedColor)?.images || [];
+    return Array.from(
+      new Set([
+        viewProduct.image_url,
+        ...(viewProduct.extra_images || []),
+        ...currentColorGallery,
+      ])
+    ).filter(Boolean);
+  }, [viewProduct, selectedColor]);
 
   const relatedProducts = allProducts
     .filter(
@@ -179,7 +157,6 @@ export const ProductModal = ({
     )
     .slice(0, 3);
 
-  // Acciones
   const handleFavoriteClick = () => {
     if (isProductFavorite || userContact?.email) {
       handleToggleAction();
@@ -198,9 +175,7 @@ export const ProductModal = ({
     saveUserContact(contactData);
     setShowContactForm(false);
     handleToggleAction(contactData);
-    toast.success("¡Correo guardado!", {
-      description: "Te avisaremos automáticamente de las ofertas.",
-    });
+    toast.success("¡Correo guardado!");
   };
 
   const handleToggleAction = (manualContact?: {
@@ -222,21 +197,19 @@ export const ProductModal = ({
   };
 
   const handleAddToCart = () => {
-    const finalSize = selectedSize || "Única";
-    const finalColor = selectedColor || "Único";
     addToCart({
-      id: `${viewProduct.id}-${finalSize}-${finalColor}`,
+      id: `${viewProduct.id}-${selectedSize || "Única"}-${
+        selectedColor || "Único"
+      }`,
       productId: viewProduct.id,
       title: viewProduct.title,
       price: currentPrice || 0,
       image: viewProduct.image_url,
-      size: finalSize,
-      color: finalColor,
+      size: selectedSize || "Única",
+      color: selectedColor || "Único",
       quantity: 1,
     });
-    toast.success("¡Agregado al carrito!", {
-      description: `${viewProduct.title} - ${finalSize}`,
-    });
+    toast.success("¡Agregado al carrito!");
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
@@ -245,69 +218,74 @@ export const ProductModal = ({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
-      <DialogContent className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-5xl translate-x-[-50%] translate-y-[-50%] gap-0 border bg-white p-0 shadow-2xl duration-200 sm:rounded-xl overflow-hidden h-[95vh] sm:h-[85vh] md:grid-cols-2">
-        <DialogTitle className="hidden">{viewProduct.title}</DialogTitle>
+      {/* Z-INDEX 100 para estar encima de todo */}
+      <DialogContent
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="fixed left-[50%] top-[50%] z-[100] grid w-full max-w-5xl translate-x-[-50%] translate-y-[-50%] gap-0 border bg-white p-0 shadow-2xl sm:rounded-xl overflow-hidden h-[95vh] sm:h-[85vh] md:grid-cols-2"
+      >
+        {/* SOLUCIÓN AL WARNING: Descripción invisible */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{viewProduct.title}</DialogTitle>
+          <DialogDescription>
+            Detalles del producto {viewProduct.title}, precio ${currentPrice},
+            categoría {viewProduct.category}.
+          </DialogDescription>
+        </DialogHeader>
+
         <SizeGuide
           isOpen={showSizeGuide}
           onClose={() => setShowSizeGuide(false)}
           category={sizeCategory}
         />
 
-        {/* --- COLUMNA IZQUIERDA: GALERÍA VISUAL --- */}
+        {/* --- COLUMNA IZQUIERDA: GALERÍA --- */}
         <div className="relative h-[40vh] md:h-full bg-[#f9f9f9] flex flex-col">
-          {/* HE QUITADO EL BOTÓN DE CERRAR MANUAL AQUÍ */}
-
-          {/* Imagen Principal */}
           <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
             <img
               src={activeImage}
               alt={viewProduct.title}
-              className="h-full w-full object-contain mix-blend-multiply transition-opacity duration-300 animate-in fade-in zoom-in-95"
+              className="h-full w-full object-contain mix-blend-multiply transition-all duration-500 animate-in fade-in zoom-in-95"
             />
           </div>
-
-          {/* Miniaturas (Scroll Horizontal) */}
-          {uniqueImages.length > 1 && (
+          {imagesToShow.length > 1 && (
             <div className="flex gap-2 px-6 pb-6 overflow-x-auto scrollbar-hide justify-center">
-              {uniqueImages.map((img, idx) => (
+              {imagesToShow.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveImage(img)}
                   className={cn(
-                    "relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border bg-white transition-all hover:border-black",
+                    "relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border bg-white transition-all",
                     activeImage === img
                       ? "border-black ring-1 ring-black"
-                      : "border-transparent opacity-70 hover:opacity-100"
+                      : "border-transparent opacity-70"
                   )}
                 >
-                  <img src={img} className="h-full w-full object-cover" />
+                  <img
+                    src={img}
+                    className="h-full w-full object-cover"
+                    alt="thumbnail"
+                  />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* --- COLUMNA DERECHA: INFORMACIÓN Y ACCIONES --- */}
+        {/* --- COLUMNA DERECHA: INFO --- */}
         <div className="flex flex-col h-full overflow-y-auto bg-white p-6 sm:p-10 scrollbar-thin scrollbar-thumb-zinc-200">
-          {/* Header Producto */}
           <div className="mb-8 border-b border-zinc-100 pb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-                {viewProduct.category}
-              </span>
-              {/* HE QUITADO EL BOTÓN DE CERRAR MANUAL AQUÍ TAMBIÉN */}
-            </div>
-
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 block mb-2">
+              {viewProduct.category}
+            </span>
             <h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 leading-[0.9] mb-4">
               {viewProduct.title}
             </h2>
-
             <div className="flex items-end gap-3">
               <span className="text-3xl font-bold tracking-tight">
                 ${currentPrice}
               </span>
               {hasDiscount && (
-                <span className="mb-1 text-lg text-zinc-400 line-through decoration-zinc-300">
+                <span className="mb-1 text-lg text-zinc-400 line-through">
                   ${viewProduct.price}
                 </span>
               )}
@@ -319,18 +297,14 @@ export const ProductModal = ({
             </div>
           </div>
 
-          {/* Descripción */}
           {viewProduct.description && (
-            <div className="mb-8">
-              <p className="text-sm leading-relaxed text-zinc-600">
-                {viewProduct.description}
-              </p>
-            </div>
+            <p className="text-sm leading-relaxed text-zinc-600 mb-8">
+              {viewProduct.description}
+            </p>
           )}
 
-          {/* Selectores */}
-          <div className="space-y-6 flex-1">
-            {/* Selector Color */}
+          <div className="space-y-8 flex-1">
+            {/* Colores */}
             <div className="space-y-3">
               <span className="text-xs font-bold uppercase tracking-wider text-zinc-900">
                 Color:{" "}
@@ -339,30 +313,27 @@ export const ProductModal = ({
                 </span>
               </span>
               <div className="flex flex-wrap gap-2">
-                {colorsArray.map((c) => {
-                  const isSoldOut = viewProduct.sold_out_colors?.includes(c);
-                  return (
-                    <button
-                      key={c}
-                      disabled={isSoldOut}
-                      onClick={() => setSelectedColor(c)}
-                      className={cn(
-                        "px-4 py-2 text-xs font-medium border transition-all rounded-sm",
-                        selectedColor === c
-                          ? "bg-black text-white border-black"
-                          : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400",
-                        isSoldOut &&
-                          "opacity-40 cursor-not-allowed bg-zinc-50 line-through"
-                      )}
-                    >
-                      {c}
-                    </button>
-                  );
-                })}
+                {(Array.isArray(viewProduct.colors)
+                  ? viewProduct.colors
+                  : [viewProduct.colors || "Único"]
+                ).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setSelectedColor(c)}
+                    className={cn(
+                      "px-4 py-2 text-xs font-medium border rounded-sm transition-all",
+                      selectedColor === c
+                        ? "bg-black text-white border-black"
+                        : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Selector Talla */}
+            {/* Tallas */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-900">
@@ -374,25 +345,28 @@ export const ProductModal = ({
                 {sizeCategory !== "accessories" && (
                   <button
                     onClick={() => setShowSizeGuide(true)}
-                    className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 hover:text-black underline decoration-zinc-300 hover:decoration-black underline-offset-4 transition-all"
+                    className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 hover:text-black underline underline-offset-4"
                   >
                     <Ruler className="h-3 w-3" /> Guía de Tallas
                   </button>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {sizesList.map((s, idx) => (
+                {(
+                  viewProduct.sizes_data || [
+                    { size: viewProduct.size || "Única", available: true },
+                  ]
+                ).map((s, idx) => (
                   <button
                     key={idx}
                     disabled={!s.available}
                     onClick={() => setSelectedSize(s.size)}
                     className={cn(
-                      "min-w-[48px] h-12 px-2 flex items-center justify-center text-xs font-bold border transition-all rounded-sm",
+                      "min-w-[48px] h-12 px-2 text-xs font-bold border rounded-sm transition-all",
                       selectedSize === s.size
                         ? "bg-black text-white border-black ring-2 ring-black ring-offset-2"
                         : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-900",
-                      !s.available &&
-                        "opacity-40 cursor-not-allowed bg-zinc-50 border-zinc-100 text-zinc-300 diagonal-line"
+                      !s.available && "opacity-40 cursor-not-allowed bg-zinc-50"
                     )}
                   >
                     {s.size}
@@ -402,13 +376,12 @@ export const ProductModal = ({
             </div>
           </div>
 
-          {/* Botones de Acción */}
           <div className="mt-8 flex gap-3">
             <Button
               variant="outline"
               size="icon"
               className={cn(
-                "h-14 w-14 flex-shrink-0 rounded-sm border-zinc-200 hover:border-red-500 hover:bg-red-50 hover:text-red-500 transition-all",
+                "h-14 w-14 rounded-sm border-zinc-200 transition-all",
                 isProductFavorite && "border-red-500 bg-red-50 text-red-500"
               )}
               onClick={handleFavoriteClick}
@@ -417,7 +390,6 @@ export const ProductModal = ({
                 className={cn("h-6 w-6", isProductFavorite && "fill-current")}
               />
             </Button>
-
             <Button
               onClick={handleAddToCart}
               disabled={isAdded || viewProduct.is_sold}
@@ -428,30 +400,24 @@ export const ProductModal = ({
                   : "bg-black hover:bg-zinc-800"
               )}
             >
-              {viewProduct.is_sold ? (
-                "Agotado"
-              ) : isAdded ? (
-                <span className="flex items-center gap-2">
-                  <Check className="h-5 w-5" /> Agregado
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5" /> Agregar al Carrito
-                </span>
-              )}
+              {viewProduct.is_sold
+                ? "Agotado"
+                : isAdded
+                ? "Agregado"
+                : "Agregar al Carrito"}
             </Button>
           </div>
 
           {/* Footer Informativo */}
           <div className="mt-8 grid grid-cols-2 gap-4 border-t border-dashed border-zinc-200 pt-6">
             <div className="flex items-center gap-3 text-zinc-500">
-              <Truck className="w-5 h-5 text-zinc-400" />
+              <Truck className="w-5 h-5" />
               <span className="text-[10px] uppercase font-bold tracking-wide">
                 Envíos a todo Ecuador
               </span>
             </div>
             <div className="flex items-center gap-3 text-zinc-500">
-              <ShieldCheck className="w-5 h-5 text-zinc-400" />
+              <ShieldCheck className="w-5 h-5" />
               <span className="text-[10px] uppercase font-bold tracking-wide">
                 Compra Segura
               </span>
@@ -475,6 +441,7 @@ export const ProductModal = ({
                       <img
                         src={rel.image_url}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 mix-blend-multiply"
+                        alt={rel.title}
                       />
                     </div>
                     <div className="space-y-0.5">
@@ -495,13 +462,13 @@ export const ProductModal = ({
 
       {/* --- MODAL EMAIL --- */}
       <Dialog open={showContactForm} onOpenChange={setShowContactForm}>
-        <DialogContent className="sm:max-w-[400px] z-[60]">
+        <DialogContent className="sm:max-w-[400px] z-[110]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black italic">
-              ¡Avisame cuando baje!
+              ¡Avísame de ofertas!
             </DialogTitle>
             <DialogDescription>
-              Déjanos tu correo y te enviaremos una alerta automática.
+              Déjanos tu correo para alertas de precio.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitContact} className="grid gap-4 py-4">
@@ -514,7 +481,7 @@ export const ProductModal = ({
                 <Input
                   id="email"
                   placeholder="ejemplo@gmail.com"
-                  className="pl-9"
+                  className="pl-9 rounded-sm"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
                   autoFocus
@@ -523,7 +490,7 @@ export const ProductModal = ({
             </div>
             <Button
               type="submit"
-              className="w-full bg-black font-bold text-white"
+              className="w-full bg-black font-bold text-white uppercase tracking-widest rounded-sm h-12"
             >
               Guardar Alerta
             </Button>
