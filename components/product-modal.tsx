@@ -7,18 +7,21 @@ import {
   DialogTitle,
   DialogHeader,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Ruler,
-  ShoppingCart,
   Heart,
-  Check,
-  Mail,
   Truck,
   ShieldCheck,
+  X,
+  Star,
+  RefreshCcw,
+  ArrowRight,
+  ShoppingBag,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -43,6 +46,7 @@ interface Product {
   sold_out_colors?: string[];
   gallery?: { color: string; images: string[] }[];
   is_sold?: boolean;
+  created_at?: string;
 }
 
 interface ProductModalProps {
@@ -60,9 +64,7 @@ export const ProductModal = ({
   const { toggleFavorite, isFavorite, userContact, saveUserContact } =
     useFavorites();
 
-  // ESTADO INICIAL: FALSE (Para que no se abra solo al cargar la página)
   const [open, setOpen] = useState(false);
-
   const [showContactForm, setShowContactForm] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [viewProduct, setViewProduct] = useState<Product>(product);
@@ -111,30 +113,21 @@ export const ProductModal = ({
     viewProduct.sale_price && viewProduct.sale_price < viewProduct.price;
   const currentPrice = hasDiscount ? viewProduct.sale_price : viewProduct.price;
 
+  // Lógica simple para categoría de tallas
   const sizeCategory: SizeCategory = useMemo(() => {
     const cat = viewProduct.category.toLowerCase();
-    const title = viewProduct.title.toLowerCase();
     if (cat.includes("niño") || cat.includes("kids")) return "kids";
-    if (
-      cat.includes("accesorio") ||
-      cat.includes("gorra") ||
-      cat.includes("bolso")
-    )
+    if (cat.includes("accesorio") || cat.includes("gorra"))
       return "accessories";
-    if (
-      cat.includes("pantalon") ||
-      title.includes("pant") ||
-      title.includes("short")
-    )
-      return "bottoms";
+    if (cat.includes("pantalon") || cat.includes("short")) return "bottoms";
     if (
       cat.includes("ropa") ||
-      title.includes("camiseta") ||
-      title.includes("hoodie")
+      cat.includes("camiseta") ||
+      cat.includes("hoodie")
     )
       return "tops";
     return "shoes";
-  }, [viewProduct.category, viewProduct.title]);
+  }, [viewProduct.category]);
 
   const imagesToShow = useMemo(() => {
     const currentColorGallery =
@@ -168,14 +161,14 @@ export const ProductModal = ({
   const handleSubmitContact = (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput || !emailInput.includes("@")) {
-      toast.error("Por favor ingresa un correo válido");
+      toast.error("Ingresa un correo válido");
       return;
     }
     const contactData = { email: emailInput, whatsapp: "" };
     saveUserContact(contactData);
     setShowContactForm(false);
     handleToggleAction(contactData);
-    toast.success("¡Correo guardado!");
+    toast.success("¡Listo! Te avisaremos.");
   };
 
   const handleToggleAction = (manualContact?: {
@@ -209,7 +202,7 @@ export const ProductModal = ({
       color: selectedColor || "Único",
       quantity: 1,
     });
-    toast.success("¡Agregado al carrito!");
+    toast.success("AGREGADO AL CARRITO");
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
@@ -218,18 +211,13 @@ export const ProductModal = ({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
-      {/* Z-INDEX 100 para estar encima de todo */}
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
-        className="fixed left-[50%] top-[50%] z-[100] grid w-full max-w-5xl translate-x-[-50%] translate-y-[-50%] gap-0 border bg-white p-0 shadow-2xl sm:rounded-xl overflow-hidden h-[95vh] sm:h-[85vh] md:grid-cols-2"
+        className="fixed z-[100] gap-0 border-none bg-white p-0 shadow-2xl sm:rounded-none overflow-hidden max-w-5xl h-[100dvh] sm:h-[85vh] grid grid-cols-1 md:grid-cols-2"
       >
-        {/* SOLUCIÓN AL WARNING: Descripción invisible */}
         <DialogHeader className="sr-only">
           <DialogTitle>{viewProduct.title}</DialogTitle>
-          <DialogDescription>
-            Detalles del producto {viewProduct.title}, precio ${currentPrice},
-            categoría {viewProduct.category}.
-          </DialogDescription>
+          <DialogDescription>Detalles del producto</DialogDescription>
         </DialogHeader>
 
         <SizeGuide
@@ -238,32 +226,48 @@ export const ProductModal = ({
           category={sizeCategory}
         />
 
+        {/* --- BOTÓN CERRAR FLOTANTE (Visible siempre) --- */}
+        <DialogClose className="absolute right-4 top-4 z-[110] rounded-full bg-white/80 p-2 hover:bg-black hover:text-white transition-colors backdrop-blur-sm shadow-sm">
+          <X className="h-5 w-5" />
+          <span className="sr-only">Cerrar</span>
+        </DialogClose>
+
         {/* --- COLUMNA IZQUIERDA: GALERÍA --- */}
-        <div className="relative h-[40vh] md:h-full bg-[#f9f9f9] flex flex-col">
-          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
+        <div className="relative h-[45vh] md:h-full bg-zinc-50 flex flex-col justify-between group">
+          {/* Main Image */}
+          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden relative">
+            {viewProduct.is_sold && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[2px]">
+                <span className="bg-zinc-900 text-white px-6 py-2 text-xl font-black uppercase tracking-widest transform -rotate-6">
+                  Agotado
+                </span>
+              </div>
+            )}
             <img
               src={activeImage}
               alt={viewProduct.title}
-              className="h-full w-full object-contain mix-blend-multiply transition-all duration-500 animate-in fade-in zoom-in-95"
+              className="h-full w-full object-contain mix-blend-multiply transition-transform duration-500 hover:scale-105"
             />
           </div>
+
+          {/* Thumbnails */}
           {imagesToShow.length > 1 && (
-            <div className="flex gap-2 px-6 pb-6 overflow-x-auto scrollbar-hide justify-center">
+            <div className="p-4 flex justify-center gap-2 overflow-x-auto scrollbar-hide bg-white/50 backdrop-blur-sm border-t border-zinc-100">
               {imagesToShow.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveImage(img)}
                   className={cn(
-                    "relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border bg-white transition-all",
+                    "relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-sm border bg-white transition-all",
                     activeImage === img
-                      ? "border-black ring-1 ring-black"
-                      : "border-transparent opacity-70"
+                      ? "border-black ring-1 ring-black opacity-100"
+                      : "border-zinc-200 opacity-60 hover:opacity-100 hover:border-zinc-400"
                   )}
                 >
                   <img
                     src={img}
-                    className="h-full w-full object-cover"
-                    alt="thumbnail"
+                    className="h-full w-full object-cover mix-blend-multiply p-1"
+                    alt={`view-${idx}`}
                   />
                 </button>
               ))}
@@ -272,186 +276,212 @@ export const ProductModal = ({
         </div>
 
         {/* --- COLUMNA DERECHA: INFO --- */}
-        <div className="flex flex-col h-full overflow-y-auto bg-white p-6 sm:p-10 scrollbar-thin scrollbar-thumb-zinc-200">
-          <div className="mb-8 border-b border-zinc-100 pb-6">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 block mb-2">
-              {viewProduct.category}
-            </span>
-            <h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 leading-[0.9] mb-4">
-              {viewProduct.title}
-            </h2>
-            <div className="flex items-end gap-3">
-              <span className="text-3xl font-bold tracking-tight">
-                ${currentPrice}
-              </span>
-              {hasDiscount && (
-                <span className="mb-1 text-lg text-zinc-400 line-through">
-                  ${viewProduct.price}
+        <div className="flex flex-col h-full overflow-y-auto bg-white">
+          <div className="p-6 sm:p-10 flex-1">
+            {/* Header Info */}
+            <div className="mb-8 border-b border-zinc-100 pb-6">
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
+                  {viewProduct.category}
                 </span>
-              )}
-              {viewProduct.is_sold && (
-                <span className="mb-1 rounded bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                  Agotado
-                </span>
-              )}
-            </div>
-          </div>
-
-          {viewProduct.description && (
-            <p className="text-sm leading-relaxed text-zinc-600 mb-8">
-              {viewProduct.description}
-            </p>
-          )}
-
-          <div className="space-y-8 flex-1">
-            {/* Colores */}
-            <div className="space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-900">
-                Color:{" "}
-                <span className="text-zinc-500 font-normal ml-1">
-                  {selectedColor}
-                </span>
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {(Array.isArray(viewProduct.colors)
-                  ? viewProduct.colors
-                  : [viewProduct.colors || "Único"]
-                ).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setSelectedColor(c)}
-                    className={cn(
-                      "px-4 py-2 text-xs font-medium border rounded-sm transition-all",
-                      selectedColor === c
-                        ? "bg-black text-white border-black"
-                        : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-                    )}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tallas */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-900">
-                  Talla:{" "}
-                  <span className="text-zinc-500 font-normal ml-1">
-                    {selectedSize}
+                {hasDiscount && (
+                  <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-widest rounded-sm">
+                    Sale
                   </span>
-                </span>
-                {sizeCategory !== "accessories" && (
-                  <button
-                    onClick={() => setShowSizeGuide(true)}
-                    className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 hover:text-black underline underline-offset-4"
-                  >
-                    <Ruler className="h-3 w-3" /> Guía de Tallas
-                  </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  viewProduct.sizes_data || [
-                    { size: viewProduct.size || "Única", available: true },
-                  ]
-                ).map((s, idx) => (
-                  <button
-                    key={idx}
-                    disabled={!s.available}
-                    onClick={() => setSelectedSize(s.size)}
+              <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-zinc-900 leading-[0.9] mb-4">
+                {viewProduct.title}
+              </h2>
+              <div className="flex items-baseline gap-3">
+                <span className="text-2xl font-bold tracking-tight text-zinc-900">
+                  ${currentPrice?.toFixed(2)}
+                </span>
+                {hasDiscount && (
+                  <span className="text-sm text-zinc-400 line-through decoration-zinc-300">
+                    ${viewProduct.price?.toFixed(2)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Selectores */}
+            <div className="space-y-8">
+              {/* Colores */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-zinc-900">
+                  Color Seleccionado
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {(Array.isArray(viewProduct.colors)
+                    ? viewProduct.colors
+                    : [viewProduct.colors || "Único"]
+                  ).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setSelectedColor(c)}
+                      className={cn(
+                        "h-10 px-4 text-xs font-bold border rounded-sm transition-all uppercase tracking-wide",
+                        selectedColor === c
+                          ? "bg-black text-white border-black"
+                          : "bg-white text-zinc-500 border-zinc-200 hover:border-black hover:text-black"
+                      )}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tallas */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-widest text-zinc-900">
+                    Talla
+                  </span>
+                  {sizeCategory !== "accessories" && (
+                    <button
+                      onClick={() => setShowSizeGuide(true)}
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-400 hover:text-black hover:underline uppercase tracking-wide transition-colors"
+                    >
+                      <Ruler className="h-3 w-3" /> Guía
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    viewProduct.sizes_data || [
+                      { size: viewProduct.size || "Única", available: true },
+                    ]
+                  ).map((s, idx) => (
+                    <button
+                      key={idx}
+                      disabled={!s.available}
+                      onClick={() => setSelectedSize(s.size)}
+                      className={cn(
+                        "min-w-[3rem] h-12 px-3 text-xs font-bold border rounded-sm transition-all uppercase",
+                        selectedSize === s.size
+                          ? "bg-black text-white border-black shadow-md"
+                          : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-900",
+                        !s.available &&
+                          "opacity-30 cursor-not-allowed bg-zinc-100 decoration-zinc-400 line-through"
+                      )}
+                    >
+                      {s.size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleAddToCart}
+                  disabled={isAdded || viewProduct.is_sold}
+                  className={cn(
+                    "h-14 flex-1 rounded-none text-sm font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl",
+                    isAdded
+                      ? "bg-green-600 hover:bg-green-700 text-white border-green-600"
+                      : "bg-black hover:bg-zinc-800 text-white"
+                  )}
+                >
+                  {viewProduct.is_sold ? (
+                    "Agotado"
+                  ) : isAdded ? (
+                    "En el carrito"
+                  ) : (
+                    <>
+                      <ShoppingBag className="mr-2 h-4 w-4" /> Agregar al
+                      Carrito
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-14 w-14 rounded-none border-zinc-200 hover:bg-zinc-50 transition-all",
+                    isProductFavorite &&
+                      "border-red-200 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 hover:border-red-300"
+                  )}
+                  onClick={handleFavoriteClick}
+                >
+                  <Heart
                     className={cn(
-                      "min-w-[48px] h-12 px-2 text-xs font-bold border rounded-sm transition-all",
-                      selectedSize === s.size
-                        ? "bg-black text-white border-black ring-2 ring-black ring-offset-2"
-                        : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-900",
-                      !s.available && "opacity-40 cursor-not-allowed bg-zinc-50"
+                      "h-5 w-5",
+                      isProductFavorite && "fill-current"
                     )}
-                  >
-                    {s.size}
-                  </button>
-                ))}
+                  />
+                </Button>
+              </div>
+
+              {/* Garantías */}
+              <div className="grid grid-cols-2 gap-px bg-zinc-100 border border-zinc-200 mt-8 rounded-sm overflow-hidden">
+                <div className="bg-white p-4 flex items-center gap-3">
+                  <ShieldCheck className="w-5 h-5 text-zinc-900" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900">
+                      Auténtico
+                    </p>
+                    <p className="text-[9px] text-zinc-500">100% Original</p>
+                  </div>
+                </div>
+                <div className="bg-white p-4 flex items-center gap-3">
+                  <Truck className="w-5 h-5 text-zinc-900" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900">
+                      Envío Rápido
+                    </p>
+                    <p className="text-[9px] text-zinc-500">Todo Ecuador</p>
+                  </div>
+                </div>
+                <div className="bg-white p-4 flex items-center gap-3">
+                  <RefreshCcw className="w-5 h-5 text-zinc-900" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900">
+                      Lavado
+                    </p>
+                    <p className="text-[9px] text-zinc-500">Listo para usar</p>
+                  </div>
+                </div>
+                <div className="bg-white p-4 flex items-center gap-3">
+                  <Star className="w-5 h-5 text-zinc-900" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900">
+                      Exclusivo
+                    </p>
+                    <p className="text-[9px] text-zinc-500">Pieza única</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="mt-8 flex gap-3">
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn(
-                "h-14 w-14 rounded-sm border-zinc-200 transition-all",
-                isProductFavorite && "border-red-500 bg-red-50 text-red-500"
-              )}
-              onClick={handleFavoriteClick}
-            >
-              <Heart
-                className={cn("h-6 w-6", isProductFavorite && "fill-current")}
-              />
-            </Button>
-            <Button
-              onClick={handleAddToCart}
-              disabled={isAdded || viewProduct.is_sold}
-              className={cn(
-                "h-14 flex-1 rounded-sm text-sm font-bold uppercase tracking-widest transition-all",
-                isAdded
-                  ? "bg-green-600 hover:bg-green-700"
-                  : "bg-black hover:bg-zinc-800"
-              )}
-            >
-              {viewProduct.is_sold
-                ? "Agotado"
-                : isAdded
-                ? "Agregado"
-                : "Agregar al Carrito"}
-            </Button>
-          </div>
-
-          {/* Footer Informativo */}
-          <div className="mt-8 grid grid-cols-2 gap-4 border-t border-dashed border-zinc-200 pt-6">
-            <div className="flex items-center gap-3 text-zinc-500">
-              <Truck className="w-5 h-5" />
-              <span className="text-[10px] uppercase font-bold tracking-wide">
-                Envíos a todo Ecuador
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-zinc-500">
-              <ShieldCheck className="w-5 h-5" />
-              <span className="text-[10px] uppercase font-bold tracking-wide">
-                Compra Segura
-              </span>
-            </div>
-          </div>
-
-          {/* Productos Relacionados */}
+          {/* Related Products */}
           {relatedProducts.length > 0 && (
-            <div className="mt-10 pt-8 border-t border-zinc-100">
-              <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-zinc-400">
-                También te podría gustar
+            <div className="p-6 sm:p-10 bg-zinc-50 border-t border-zinc-100">
+              <h4 className="mb-4 text-xs font-black uppercase tracking-widest text-zinc-400">
+                Quizás te interese
               </h4>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-4">
                 {relatedProducts.map((rel) => (
                   <div
                     key={rel.id}
                     className="group cursor-pointer"
                     onClick={() => loadProductData(rel)}
                   >
-                    <div className="aspect-square relative mb-2 overflow-hidden rounded-sm bg-zinc-50">
+                    <div className="aspect-square relative mb-2 overflow-hidden bg-white border border-zinc-200">
                       <img
                         src={rel.image_url}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 mix-blend-multiply"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 mix-blend-multiply p-2"
                         alt={rel.title}
                       />
                     </div>
-                    <div className="space-y-0.5">
-                      <p className="line-clamp-1 text-[10px] font-bold uppercase leading-tight text-zinc-900">
-                        {rel.title}
-                      </p>
-                      <p className="text-[10px] text-zinc-500">
-                        ${rel.sale_price || rel.price}
-                      </p>
-                    </div>
+                    <p className="line-clamp-1 text-[10px] font-bold uppercase leading-tight text-zinc-900 group-hover:underline">
+                      {rel.title}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      ${rel.sale_price || rel.price}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -462,37 +492,38 @@ export const ProductModal = ({
 
       {/* --- MODAL EMAIL --- */}
       <Dialog open={showContactForm} onOpenChange={setShowContactForm}>
-        <DialogContent className="sm:max-w-[400px] z-[110]">
+        <DialogContent className="sm:max-w-[400px] z-[110] border-zinc-200 shadow-xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black italic">
-              ¡Avísame de ofertas!
+            <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">
+              Alertas de Precio
             </DialogTitle>
-            <DialogDescription>
-              Déjanos tu correo para alertas de precio.
+            <DialogDescription className="text-xs">
+              Guarda este producto en favoritos y te avisaremos si baja de
+              precio.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmitContact} className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email" className="font-bold">
-                Tu Correo
+          <form onSubmit={handleSubmitContact} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label
+                htmlFor="email"
+                className="text-xs font-bold uppercase tracking-widest"
+              >
+                Correo Electrónico
               </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  placeholder="ejemplo@gmail.com"
-                  className="pl-9 rounded-sm"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  autoFocus
-                />
-              </div>
+              <Input
+                id="email"
+                placeholder="tu@email.com"
+                className="h-12 bg-zinc-50 border-zinc-200 focus:bg-white"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                autoFocus
+              />
             </div>
             <Button
               type="submit"
-              className="w-full bg-black font-bold text-white uppercase tracking-widest rounded-sm h-12"
+              className="w-full h-12 bg-black text-white font-bold uppercase tracking-widest hover:bg-zinc-800"
             >
-              Guardar Alerta
+              Guardar y Continuar
             </Button>
           </form>
         </DialogContent>
